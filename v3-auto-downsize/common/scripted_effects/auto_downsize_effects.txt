@@ -134,6 +134,21 @@ auto_downsize_check_and_execute = {
                 level >= 1
 
                 # ====================================================
+                # § 铁路特殊检查：必须有基建盈余才能降级
+                # 铁路提供基础设施（基础20点/级），降级铁路会减少基建。
+                # 非铁路建筑：直接通过（NOT = is_building_type = railway）
+                # 铁路建筑：额外要求所在地区基建有盈余（infrastructure > usage）
+                # 【可调参数】如果想让铁路降级更保守，把 > 改大，例如：
+                #   infrastructure > infrastructure_usage + 20  表示至少盈余20点
+                # ====================================================
+                OR = {
+                    NOT = { is_building_type = building_railway }
+                    state = {
+                        infrastructure > infrastructure_usage
+                    }
+                }
+
+                # ====================================================
                 # § 建筑组排除（多条件组，排在最后）
                 # ====================================================
 
@@ -431,6 +446,12 @@ auto_downsize_ai_check = {
                 }
                 NOT = { is_building_group = bg_trade }
                 NOT = { is_building_group = bg_extraction }
+                OR = {
+                    NOT = { is_building_type = building_railway }
+                    state = {
+                        infrastructure > infrastructure_usage
+                    }
+                }
             }
         }
 
@@ -448,6 +469,14 @@ auto_downsize_ai_check = {
                 NOT = { is_subsistence_building = yes }
                 private_ownership_fraction > 0
                 level >= 1
+
+                # 铁路特殊检查：必须有基建盈余才能降级
+                OR = {
+                    NOT = { is_building_type = building_railway }
+                    state = {
+                        infrastructure > infrastructure_usage
+                    }
+                }
 
                 # ---- 建筑组排除 ----
                 NOR = {
