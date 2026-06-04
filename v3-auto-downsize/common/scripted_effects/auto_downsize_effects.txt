@@ -9,6 +9,7 @@
  ★ 如果你只想改阈值：搜索 "【可调参数】"
  ★ 如果你只想改降级量：搜索 "【降级量表】"
  ★ 如果你只想改冷却期：搜索 "【冷却期】"
+ ★ 如果你想改产权限制：搜索 "【产权检查】"
 
  ★ 重要语法说明：
    every_scope_building = { limit = { ... } ... }
@@ -84,6 +85,23 @@ auto_downsize_check_and_execute = {
 
 
             # ====================================================
+            # § 关键限制：仅降级有私有/公司持有的建筑等级
+            # private_ownership_fraction 范围 0.0 ~ 1.0
+            #   0.0 = 完全政府持有（玩家可手动降级）→ 跳过
+            #   0.5 = 一半私有、一半政府
+            #   1.0 = 完全私有（资本家/公司持有，玩家无法手动降级）
+            #
+            # 这是本 Mod 的核心限制：只处理玩家"不能手动降级"的那部分等级。
+            # 政府持有的等级玩家随时可以在建筑面板手动调整，
+            # 但私有等级没有 UI 入口，只能靠这个 Mod 自动处理。
+            #
+            # 【可调参数】改 > 0 → = 1 表示"只处理100%私有的建筑"
+            # 【可调参数】改 > 0 → >= 0.5 表示"只处理私有过半的建筑"
+            # ====================================================
+            private_ownership_fraction > 0
+
+
+            # ====================================================
             # § 触发条件（所有以下条件必须同时满足）
             # 【可调参数】修改这些数字来调整灵敏度
             # ====================================================
@@ -134,6 +152,11 @@ auto_downsize_check_and_execute = {
         #   26-50 级     -5       -3
         #   51-100 级    -8       -5
         #   100+ 级      -12      -8
+        #
+        # 【产权检查】每个降级档位还有 private_ownership_fraction 门槛：
+        #   门槛 = 降级量 / 该档最低等级
+        #   这确保即使在最坏情况下(刚好踩线进入该档)，私有等级数也 ≥ 降级量
+        #   从而绝对不会误扣政府持有的等级
         # ============================================================
 
         # ———————— 🔴 严重分支 ————————
@@ -150,8 +173,12 @@ auto_downsize_check_and_execute = {
             #   只执行第一个满足条件的分支，后面的跳过
 
             # 100 级以上 — 降 12 级 【降级量表】
+            # 【产权检查】门槛 0.12：100级×12% = 12 私有等级 → 够扣
             if = {
-                limit = { level >= 100 }
+                limit = {
+                    level >= 100
+                    private_ownership_fraction >= 0.12
+                }
                 state = {
                     add_building_level = {
                         building = PREV    # ← PREV = 当前建筑
@@ -160,8 +187,12 @@ auto_downsize_check_and_execute = {
                 }
             }
             # 51-100 级 — 降 8 级 【降级量表】
+            # 【产权检查】门槛 0.16：51级×16% ≈ 8.2 私有等级 → 够扣
             else_if = {
-                limit = { level >= 51 }
+                limit = {
+                    level >= 51
+                    private_ownership_fraction >= 0.16
+                }
                 state = {
                     add_building_level = {
                         building = PREV
@@ -170,8 +201,12 @@ auto_downsize_check_and_execute = {
                 }
             }
             # 26-50 级 — 降 5 级 【降级量表】
+            # 【产权检查】门槛 0.20：26级×20% ≈ 5.2 私有等级 → 够扣
             else_if = {
-                limit = { level >= 26 }
+                limit = {
+                    level >= 26
+                    private_ownership_fraction >= 0.20
+                }
                 state = {
                     add_building_level = {
                         building = PREV
@@ -180,8 +215,12 @@ auto_downsize_check_and_execute = {
                 }
             }
             # 11-25 级 — 降 3 级 【降级量表】
+            # 【产权检查】门槛 0.28：11级×28% ≈ 3.1 私有等级 → 够扣
             else_if = {
-                limit = { level >= 11 }
+                limit = {
+                    level >= 11
+                    private_ownership_fraction >= 0.28
+                }
                 state = {
                     add_building_level = {
                         building = PREV
@@ -190,7 +229,14 @@ auto_downsize_check_and_execute = {
                 }
             }
             # 1-10 级 — 降 1 级 【降级量表】
-            else = {
+            # 【产权检查】门槛 0.50：
+            #   最坏情况 level=1，降1级会移除整栋建筑。设 0.50 保守阈值
+            #   确保建筑至少一半是私有的，才允许移除它
+            else_if = {
+                limit = {
+                    level >= 1
+                    private_ownership_fraction >= 0.50
+                }
                 state = {
                     add_building_level = {
                         building = PREV
@@ -205,8 +251,12 @@ auto_downsize_check_and_execute = {
         # 降级量比严重分支小
         else = {
             # 100 级以上 — 降 8 级 【降级量表】
+            # 【产权检查】门槛 0.08：100级×8% = 8 私有等级 → 够扣
             if = {
-                limit = { level >= 100 }
+                limit = {
+                    level >= 100
+                    private_ownership_fraction >= 0.08
+                }
                 state = {
                     add_building_level = {
                         building = PREV
@@ -215,8 +265,12 @@ auto_downsize_check_and_execute = {
                 }
             }
             # 51-100 级 — 降 5 级 【降级量表】
+            # 【产权检查】门槛 0.10：51级×10% ≈ 5.1 私有等级 → 够扣
             else_if = {
-                limit = { level >= 51 }
+                limit = {
+                    level >= 51
+                    private_ownership_fraction >= 0.10
+                }
                 state = {
                     add_building_level = {
                         building = PREV
@@ -225,8 +279,12 @@ auto_downsize_check_and_execute = {
                 }
             }
             # 26-50 级 — 降 3 级 【降级量表】
+            # 【产权检查】门槛 0.12：26级×12% ≈ 3.1 私有等级 → 够扣
             else_if = {
-                limit = { level >= 26 }
+                limit = {
+                    level >= 26
+                    private_ownership_fraction >= 0.12
+                }
                 state = {
                     add_building_level = {
                         building = PREV
@@ -235,8 +293,12 @@ auto_downsize_check_and_execute = {
                 }
             }
             # 11-25 级 — 降 2 级 【降级量表】
+            # 【产权检查】门槛 0.19：11级×19% ≈ 2.1 私有等级 → 够扣
             else_if = {
-                limit = { level >= 11 }
+                limit = {
+                    level >= 11
+                    private_ownership_fraction >= 0.19
+                }
                 state = {
                     add_building_level = {
                         building = PREV
@@ -245,7 +307,13 @@ auto_downsize_check_and_execute = {
                 }
             }
             # 1-10 级 — 降 1 级 【降级量表】
-            else = {
+            # 【产权检查】门槛 0.50（保守值）：
+            #   最坏情况 level=1，降1级会移除整栋建筑。设 0.50 保守阈值
+            else_if = {
+                limit = {
+                    level >= 1
+                    private_ownership_fraction >= 0.50
+                }
                 state = {
                     add_building_level = {
                         building = PREV
