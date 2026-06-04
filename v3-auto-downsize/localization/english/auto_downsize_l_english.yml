@@ -1,0 +1,28 @@
+# ============================================================================
+# 英文本地化 — English Localization
+# ============================================================================
+# 格式说明：
+#   每行格式： key:数字 "文本"
+#   数字 0 = 默认文本（大部分情况用 0 即可）
+#   文本中的特殊标记：
+#     #bold ...#!      → 粗体字
+#     #variable ...#!  → 游戏主色调（通常是金色）
+#     \n\n             → 换两行（用于段落分隔）
+#     [SCOPE...GetValue|0] → 显示变量值，|0 表示变量不存在时显示 0
+# ============================================================================
+
+l_english:
+
+ # ---- 日记条目 ----
+ je_auto_downsize:0 "Private Building Oversight"
+ je_auto_downsize_desc:0 "Monitor and automatically downsize unprofitable, understaffed buildings owned by the private sector. This helps prevent infrastructure strain caused by speculative overbuilding in the late game.\n\n#bold Buildings affected so far:#! [SCOPE.sCountry('root').MakeScope.Var('auto_downsize_buildings_affected').GetValue|0]"
+
+ # ---- 启用/禁用按钮 ----
+ # 按钮上的文字。 §H...§! 是黄色标题色
+ auto_downsize_toggle_button_name:0 "§HEnable Auto-Downsize§!"
+ # 鼠标悬停提示
+ auto_downsize_toggle_button_desc:0 "Click to enable or disable automatic downsizing of unprofitable private buildings.\n\nWhen enabled, buildings with low staffing, depleted cash reserves, and no profit will have their levels gradually reduced."
+
+ # ---- 频率切换按钮 ----
+ auto_downsize_frequency_button_name:0 "§HCheck Frequency§!"
+ auto_downsize_frequency_button_desc:0 "Click to switch between weekly and monthly checks.\n\n#bold Weekly:#! Responds faster to problem buildings.\n#bold Monthly (default):#! Lower performance impact."

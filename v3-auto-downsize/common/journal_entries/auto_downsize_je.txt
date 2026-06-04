@@ -1,0 +1,123 @@
+================================================================================
+ 日记条目 (Journal Entry) — "私营建筑监管"
+================================================================================
+ 这个文件定义了游戏内"日志"面板中显示的条目。
+ 游戏内路径：打开日志面板 (F8) → 内政分类 → "私营建筑监管"
+
+ ★ 工作原理：
+   1. 条目始终对玩家可见（is_shown_when_inactive）
+   2. 条目始终处于激活状态（possible = always yes）
+   3. 但实际的降级逻辑由两个"变量"控制是否执行：
+      - auto_downsize_enabled：存在 = Mod 启用，不存在 = Mod 禁用
+      - auto_downsize_weekly：  存在 = 每周检查，不存在 = 每月检查
+   4. 每周/每月的脉冲触发时，先检查这两个变量再决定是否执行
+
+ ★ 你需要知道的变量：
+   auto_downsize_enabled          — 启用开关（存在=开）
+   auto_downsize_weekly           — 频率：每周（存在=每周，不存在=每月）
+   auto_downsize_buildings_affected — 统计：累计受影响的建筑数
+
+ ★ 如果你想修改：
+   - 想默认启用 Mod？     → 在 immediate 块里加 set_variable = auto_downsize_enabled
+   - 想默认每周检查？     → 在 immediate 块里加 set_variable = auto_downsize_weekly
+   - 想只在特定国家显示？ → 改 is_shown_when_inactive 的条件
+================================================================================
+
+je_auto_downsize = {
+
+    # ----- 外观设置 -----
+    # 图标文件路径，指向游戏自带的工业图标
+    # 想换图标？可以换成 event_generic.dds / event_building.dds 等
+    icon = "gfx/interface/icons/event_icons/event_industry.dds"
+
+    # 在日志面板中的分类
+    # je_group_internal_affairs = 内政类（其他选项：je_group_crises, je_group_objectives 等）
+    group = je_group_internal_affairs
+
+
+    # ----- 可见性设置 -----
+    # 即使条目"未激活"，也对人类玩家显示
+    # 这样玩家可以在日志面板中看到这个条目并点击按钮
+    # 如果去掉这个块，条目只会在激活后才出现
+    is_shown_when_inactive = {
+        is_player = yes      # ← 只对玩家显示，AI 国家看不到
+    }
+
+
+    # ----- 激活条件 -----
+    # always = yes 表示始终激活（一旦游戏开始，这个 JE 就生效）
+    # 但这只是"条目本身激活"，降级检查是否执行还要看按钮状态
+    possible = {
+        always = yes
+    }
+
+
+    # ----- 初始化（游戏加载/条目首次激活时执行一次） -----
+    # ROOT 在这里指的是拥有这条 JE 的国家（即玩家国家）
+    immediate = {
+        ROOT = {
+            # 初始化统计计数器为 0
+            # 如果不加这个，第一次显示时会显示空白而不是 0
+            set_variable = {
+                name = auto_downsize_buildings_affected
+                value = 0
+            }
+        }
+    }
+
+
+    # ----- 挂载交互按钮 -----
+    # 这两个按钮定义在 common/scripted_buttons/auto_downsize_buttons.txt
+    # 一个控制开关，一个控制频率
+    scripted_button = auto_downsize_toggle_button
+    scripted_button = auto_downsize_frequency_button
+
+
+    # ================================================================
+    # 每周脉冲 — 每游戏周触发一次
+    # 只有同时满足下面两个条件才执行降级检查：
+    #   1. auto_downsize_enabled 变量存在（玩家启用了 Mod）
+    #   2. auto_downsize_weekly 变量存在（玩家选了"每周"频率）
+    # ================================================================
+    on_weekly_pulse = {
+        effect = {
+            # if = { limit = { 条件 } 执行内容 }
+            # has_variable = xxx  检查变量是否存在
+            if = {
+                limit = {
+                    has_variable = auto_downsize_enabled    # ← Mod 已启用？
+                    has_variable = auto_downsize_weekly     # ← 频率设为每周？
+                }
+                # 调用核心降级逻辑（定义在 scripted_effects/auto_downsize_effects.txt）
+                auto_downsize_check_and_execute = yes
+            }
+        }
+    }
+
+
+    # ================================================================
+    # 每月脉冲 — 每游戏月触发一次
+    # 条件与上面类似，但检查的是"没有" weekly 变量（即默认每月模式）
+    # NOT = { has_variable = xxx }  表示变量不存在
+    # ================================================================
+    on_monthly_pulse = {
+        effect = {
+            if = {
+                limit = {
+                    has_variable = auto_downsize_enabled    # ← Mod 已启用？
+                    NOT = { has_variable = auto_downsize_weekly }  # ← 频率是每月（没有 weekly 变量）
+                }
+                auto_downsize_check_and_execute = yes
+            }
+        }
+    }
+
+
+    # ----- 日志面板中的显示设置 -----
+    # weight: 排序权重，数字越大越靠前
+    weight = 100
+
+    # 默认置顶显示在日志面板中（玩家不需要手动去找）
+    # 改成 no 的话，条目会被折叠到分类里
+    should_be_pinned_by_default = yes
+}

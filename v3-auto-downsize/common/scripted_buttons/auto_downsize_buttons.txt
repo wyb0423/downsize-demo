@@ -1,0 +1,123 @@
+================================================================================
+ 交互按钮 (Scripted Buttons) — 日记条目上的可点击按钮
+================================================================================
+ 这个文件定义了两个按钮，它们会出现在 je_auto_downsize 条目上。
+
+ ★ 按钮基础知识：
+   每个按钮有 5 个关键属性：
+   ┌────────────┬──────────────────────────────────────┐
+   │ 属性       │ 含义                                  │
+   ├────────────┼──────────────────────────────────────┤
+   │ name       │ 按钮上显示的文字（引用本地化 key）      │
+   │ desc       │ 鼠标悬停时显示的提示（引用本地化 key）  │
+   │ visible    │ 按钮什么时候可见（看不到=完全隐藏）     │
+   │ possible   │ 按钮什么时候可以点击（灰色=不可点击）   │
+   │ selected   │ 按钮什么时候高亮（表示"已选中"状态）    │
+   │ effect     │ 点击后执行什么操作                     │
+   │ cooldown   │ 点击后的冷却时间（可选）               │
+   │ ai_chance  │ AI 国家点击的概率（0=从不）            │
+   └────────────┴──────────────────────────────────────┘
+
+ ★ 变量状态一览：
+   玩家点击按钮 → 设置/删除变量 → JE 脉冲检查变量 → 决定是否执行
+   简单来说：变量 = 开关的状态记忆
+
+   变量名                        不存在时 =         存在时 =
+   auto_downsize_enabled        Mod 禁用           Mod 启用
+   auto_downsize_weekly         每月检查           每周检查
+================================================================================
+
+
+# ============================================================================
+# 按钮 1 — 启用/禁用开关
+# 外观：一个可以切换高亮的按钮，高亮表示 Mod 已启用
+# 行为：点击 → 切换启用/禁用状态
+# ============================================================================
+
+auto_downsize_toggle_button = {
+
+    # 按钮文字和提示，对应的文本在 localization 文件中定义
+    # 格式：key:数字 "文本"，比如 auto_downsize_toggle_button_name:0 "启用"
+    name = "auto_downsize_toggle_button_name"
+    desc = "auto_downsize_toggle_button_desc"
+
+    # 始终显示这个按钮（玩家总能看到开关）
+    visible = {
+        always = yes
+    }
+
+    # 当 auto_downsize_enabled 变量存在时，按钮高亮
+    # 高亮 = 告诉玩家"当前是启用状态"
+    selected = {
+        has_variable = auto_downsize_enabled
+    }
+
+    # 点击后的效果：切换变量的存在状态
+    effect = {
+        if = {
+            limit = {
+                # 当前已启用 → 点击后禁用
+                has_variable = auto_downsize_enabled
+            }
+            remove_variable = auto_downsize_enabled
+        }
+        else = {
+            # 当前已禁用 → 点击后启用
+            set_variable = auto_downsize_enabled
+        }
+    }
+
+    # AI 国家永远不会自动点击这个按钮（base = 0 表示概率为 0）
+    ai_chance = {
+        base = 0
+    }
+}
+
+
+# ============================================================================
+# 按钮 2 — 每周/每月频率切换
+# 外观：一个仅在 Mod 启用时可点击的按钮，高亮表示"每周"模式
+# 行为：点击 → 在每周和每月之间切换
+# ============================================================================
+
+auto_downsize_frequency_button = {
+
+    name = "auto_downsize_frequency_button_name"
+    desc = "auto_downsize_frequency_button_desc"
+
+    # 始终显示（但 Mod 未启用时是灰色的，因为 possible 条件不满足）
+    visible = {
+        always = yes
+    }
+
+    # 当 auto_downsize_weekly 变量存在时高亮
+    # 高亮 = 告诉玩家"当前是每周模式"
+    selected = {
+        has_variable = auto_downsize_weekly
+    }
+
+    # 只有在 Mod 启用时才能点击此按钮
+    # 这防止了在 Mod 禁用时切换频率（没意义）
+    possible = {
+        has_variable = auto_downsize_enabled
+    }
+
+    # 点击后切换频率模式
+    effect = {
+        if = {
+            limit = {
+                # 当前是每周 → 点击后切回每月（删除 weekly 变量）
+                has_variable = auto_downsize_weekly
+            }
+            remove_variable = auto_downsize_weekly
+        }
+        else = {
+            # 当前是每月 → 点击后切到每周（设置 weekly 变量）
+            set_variable = auto_downsize_weekly
+        }
+    }
+
+    ai_chance = {
+        base = 0
+    }
+}
