@@ -3,8 +3,8 @@
 # ================================================================================
 #  这个文件被 je_auto_downsize 的脉冲（每周/每月）调用。
 #  它的工作流程：
-#    [开始] → 遍历全国每个建筑 → 筛选 → 判断严重程度 → 计算降级量
-#    → 执行降级 → 设冷却期 → 更新统计 → [结束]
+#    [开始] → 前置检查是否有目标建筑 → 遍历全国每个建筑 → 筛选
+#    → 判断严重程度 → 计算降级量 → 执行降级 → 设冷却期 → 更新统计 → [结束]
 
 #  ★ 如果你只想改阈值：搜索 "【可调参数】"
 #  ★ 如果你只想改降级量：搜索 "【降级量表】"
@@ -30,343 +30,357 @@
 #    set_variable = { name = xxx months = N }
 #      设置一个持续 N 个月的临时变量。
 #      用于冷却期：变量存在期间，建筑不会被再次降级。
+
+#  ★ 性能优化说明：
+#    1. any_scope_building 前置检查：trigger 找到第一个匹配即返回，
+#       当没有需要降级的建筑时（大多数 tick），直接跳过整个 effect 块。
+#    2. limit 条件顺序经过优化：拒绝率最高的条件排在最前面，
+#       利用引擎的短路求值尽早过滤掉大多数健康建筑。
 # ================================================================================
 
 auto_downsize_check_and_execute = {
 
     # ================================================================
-    # 遍历全国的每一个建筑
-    # every_scope_building: 从国家 scope 遍历所有 state 中的所有 building
+    # § 前置检查：是否存在需要降级的建筑？
+    # any_scope_building 是 trigger，找到第一个匹配即返回 true。
+    # 如果没有任何建筑满足条件，跳过整个 every_scope_building effect，
+    # 避免在没有目标时执行完整的 effect 遍历开销。
     # ================================================================
-    every_scope_building = {
-
-        # ----------------------------------------------------------
-        # § 第一关：limit 过滤器 — 只有满足所有条件的建筑才会被处理
-        # limit 块中的所有条件必须同时满足（AND 逻辑）
-        # ----------------------------------------------------------
+    if = {
         limit = {
-
-            # ====================================================
-            # § 排除组 1：政府/军事/公共建筑
-            # NOR = { A B C }  表示 A、B、C 都不能为真
-            # 这些建筑由国家出资，不是私人投资，玩家可以手动管理
-            # ====================================================
-            NOR = {
-                is_building_group = bg_government           # 政府建筑：大学、行政大楼等
-                is_building_group = bg_military             # 军事建筑：军营、海军基地等
-                is_building_group = bg_public_infrastructure # 公共基建：政府铁路等
+            any_scope_building = {
+                NOT = { has_variable = auto_downsize_cooldown }
+                occupancy < 0.5
+                weekly_profit <= 0
+                cash_reserves_ratio < 0.25
+                NOT = { is_subsistence_building = yes }
+                private_ownership_fraction > 0
+                level >= 1
+                NOR = {
+                    is_building_group = bg_government
+                    is_building_group = bg_military
+                    is_building_group = bg_public_infrastructure
+                }
+                NOR = {
+                    is_building_group = bg_owner_buildings
+                    is_building_group = bg_financial_districts
+                    is_building_group = bg_manor_houses
+                    is_building_group = bg_company_headquarter
+                    is_building_group = bg_company_regional_headquarter
+                }
+                NOT = { is_building_group = bg_trade }
+                NOT = { is_building_group = bg_extraction }
             }
-
-            # ====================================================
-            # § 排除组 2：自给自足建筑
-            # 自给农场/牧场是农民自己种的，不是资本家建的，不管
-            # ====================================================
-            NOT = { is_subsistence_building = yes }
-
-            # ====================================================
-            # § 排除组 3：产权持有建筑
-            # 这些建筑"持有"其他建筑（如金融区持有工厂股份）
-            # 如果删除它们会引发连锁反应，所以跳过
-            # bg_owner_buildings 是父组，下面几个是子组
-            # ====================================================
-            NOR = {
-                is_building_group = bg_owner_buildings              # 所有产权建筑
-                is_building_group = bg_financial_districts           # 金融区
-                is_building_group = bg_manor_houses                  # 庄园宅邸
-                is_building_group = bg_company_headquarter           # 公司总部
-                is_building_group = bg_company_regional_headquarter  # 公司地区总部
-            }
-
-            # ====================================================
-            # § 排除组 4：贸易中心
-            # 贸易中心由贸易路线自动管理，不需要人工干预
-            # ====================================================
-            NOT = { is_building_group = bg_trade }
-
-            # ====================================================
-            # § 排除组 5：资源提取类建筑
-            # bg_extraction 是以下所有资源建筑的父组：
-            #   bg_mining（矿场：铁、煤、硫、铅、金）
-            #   bg_logging（伐木场）、bg_fishing（渔场）
-            #   bg_whaling（捕鲸站）、bg_oil_extraction（油田）
-            #   bg_rubber（橡胶园）、bg_gold_fields（金矿）
-            #
-            # 豁免原因：资源建筑依赖地块资源禀赋，不像工厂可以无限复制。
-            # 即使暂时亏损，也不应降级——地块资源不会消失。
-            # 【可调参数】如果想把种植园也豁免，加 is_building_group = bg_plantations
-            # ====================================================
-            NOT = { is_building_group = bg_extraction }
-
-
-            # ====================================================
-            # § 关键限制：仅降级有私有/公司持有的建筑等级
-            # private_ownership_fraction 范围 0.0 ~ 1.0
-            #   0.0 = 完全政府持有（玩家可手动降级）→ 跳过
-            #   0.5 = 一半私有、一半政府
-            #   1.0 = 完全私有（资本家/公司持有，玩家无法手动降级）
-            #
-            # 这是本 Mod 的核心限制：只处理玩家"不能手动降级"的那部分等级。
-            # 政府持有的等级玩家随时可以在建筑面板手动调整，
-            # 但私有等级没有 UI 入口，只能靠这个 Mod 自动处理。
-            #
-            # 【可调参数】改 > 0 → = 1 表示"只处理100%私有的建筑"
-            # 【可调参数】改 > 0 → >= 0.5 表示"只处理私有过半的建筑"
-            # ====================================================
-            private_ownership_fraction > 0
-
-
-            # ====================================================
-            # § 触发条件（所有以下条件必须同时满足）
-            # 【可调参数】修改这些数字来调整灵敏度
-            # ====================================================
-
-            # 安全保护：建筑至少要有 1 级（0 级的建筑不存在）
-            level >= 1
-
-            # 条件 1：人手不足 — 雇佣率低于 50%
-            # occupancy 范围 0.0（完全没人）到 1.0（满员）
-            # 【可调参数】改 0.5 → 0.3 表示"低于30%才触发"（更宽松）
-            # 【可调参数】改 0.5 → 0.7 表示"低于70%就触发"（更激进）
-            occupancy < 0.5
-
-            # 条件 2：现金储备枯竭 — 低于 25%
-            # cash_reserves_ratio 范围 0.0（完全没钱）到 1.0（储备满）
-            # 【可调参数】改 0.25 → 0.1 表示"低于10%才触发"（更宽松）
-            # 【可调参数】改 0.25 → 0.5 表示"低于50%就触发"（更激进）
-            cash_reserves_ratio < 0.25
-
-            # 条件 3：不盈利 — 每周利润 ≤ 0
-            # weekly_profit 是每周盈利金额（游戏货币单位）
-            # 【可调参数】改 <= 0 → <= -100 表示"每周亏100以上才触发"
-            # 【可调参数】改 <= 0 → <= -500 表示"严重亏损才触发"
-            weekly_profit <= 0
-
-            # ====================================================
-            # § 冷却期检查
-            # 如果建筑上有 auto_downsize_cooldown 变量（说明最近被降过级）
-            # 就跳过这个建筑，防止短期内反复降级
-            # ====================================================
-            NOT = { has_variable = auto_downsize_cooldown }
         }
 
+        # ================================================================
+        # 遍历全国的每一个建筑
+        # every_scope_building: 从国家 scope 遍历所有 state 中的所有 building
+        # ================================================================
+        every_scope_building = {
 
-        # ============================================================
-        # § 第二关：已通过筛选 — 开始判断严重程度并降级
-        #
-        # 严重程度分两级：
-        #   🔴 严重 (SEVERE)：人手 < 25% 且 现金 < 10%
-        #   🟡 中度 (MODERATE)：满足基本触发条件但不满足严重条件
-        #
-        # 每种程度下，根据建筑的当前等级决定降多少级：
-        #
-        # 【降级量表】— 修改这些数字来调整降级力度
-        #  建筑等级     🔴严重    🟡中度
-        #   1-10 级      -1       -1
-        #   11-25 级     -3       -2
-        #   26-50 级     -5       -3
-        #   51-100 级    -8       -5
-        #   100+ 级      -12      -8
-        #
-        # 【产权检查】每个降级档位还有 private_ownership_fraction 门槛：
-        #   门槛 = 降级量 / 该档最低等级
-        #   这确保即使在最坏情况下(刚好踩线进入该档)，私有等级数也 ≥ 降级量
-        #   从而绝对不会误扣政府持有的等级
-        # ============================================================
-
-        # ———————— 🔴 严重分支 ————————
-        if = {
-            # 严重条件：雇佣率 < 25% 且 现金 < 10%
-            # 【可调参数】改 0.25/0.1 来调整"严重"的判定标准
+            # ----------------------------------------------------------
+            # § 第一关：limit 过滤器 — 只有满足所有条件的建筑才会被处理
+            # limit 块中的所有条件必须同时满足（AND 逻辑）
+            # 条件按拒绝率从高到低排列，利用短路求值尽早跳过不匹配的建筑
+            # ----------------------------------------------------------
             limit = {
-                occupancy < 0.25           # 不到四分之一岗位有人
-                cash_reserves_ratio < 0.1  # 现金库几乎见底
+
+                # ====================================================
+                # § 冷却期检查（排在最前——首轮后大量建筑命中，直接跳过）
+                # 如果建筑上有 auto_downsize_cooldown 变量（说明最近被降过级）
+                # 就跳过这个建筑，防止短期内反复降级
+                # ====================================================
+                NOT = { has_variable = auto_downsize_cooldown }
+
+                # ====================================================
+                # § 触发条件（高拒绝率——大多数健康建筑在此被过滤）
+                # 【可调参数】修改这些数字来调整灵敏度
+                # ====================================================
+
+                # 条件 1：人手不足 — 雇佣率低于 50%
+                # occupancy 范围 0.0（完全没人）到 1.0（满员）
+                # 【可调参数】改 0.5 → 0.3 表示"低于30%才触发"（更宽松）
+                # 【可调参数】改 0.5 → 0.7 表示"低于70%就触发"（更激进）
+                occupancy < 0.5
+
+                # 条件 2：不盈利 — 每周利润 ≤ 0
+                # weekly_profit 是每周盈利金额（游戏货币单位）
+                # 【可调参数】改 <= 0 → <= -100 表示"每周亏100以上才触发"
+                # 【可调参数】改 <= 0 → <= -500 表示"严重亏损才触发"
+                weekly_profit <= 0
+
+                # 条件 3：现金储备枯竭 — 低于 25%
+                # cash_reserves_ratio 范围 0.0（完全没钱）到 1.0（储备满）
+                # 【可调参数】改 0.25 → 0.1 表示"低于10%才触发"（更宽松）
+                # 【可调参数】改 0.25 → 0.5 表示"低于50%就触发"（更激进）
+                cash_reserves_ratio < 0.25
+
+                # ====================================================
+                # § 基本排除（快速布尔/数值检查）
+                # ====================================================
+
+                # 排除自给自足建筑（农民自己种的，不是资本家建的）
+                NOT = { is_subsistence_building = yes }
+
+                # 仅降级有私有/公司持有的建筑等级
+                # private_ownership_fraction 范围 0.0 ~ 1.0
+                #   0.0 = 完全政府持有（玩家可手动降级）→ 跳过
+                # 【可调参数】改 > 0 → = 1 表示"只处理100%私有的建筑"
+                # 【可调参数】改 > 0 → >= 0.5 表示"只处理私有过半的建筑"
+                private_ownership_fraction > 0
+
+                # 安全保护：建筑至少要有 1 级（0 级的建筑不存在）
+                level >= 1
+
+                # ====================================================
+                # § 建筑组排除（多条件组，排在最后）
+                # ====================================================
+
+                # 排除政府/军事/公共建筑
+                NOR = {
+                    is_building_group = bg_government
+                    is_building_group = bg_military
+                    is_building_group = bg_public_infrastructure
+                }
+
+                # 排除产权持有建筑（删除会引发连锁反应）
+                NOR = {
+                    is_building_group = bg_owner_buildings
+                    is_building_group = bg_financial_districts
+                    is_building_group = bg_manor_houses
+                    is_building_group = bg_company_headquarter
+                    is_building_group = bg_company_regional_headquarter
+                }
+
+                # 排除贸易中心（由贸易路线自动管理）
+                NOT = { is_building_group = bg_trade }
+
+                # 排除资源提取类建筑（依赖地块资源禀赋，不应降级）
+                # 【可调参数】如果想把种植园也豁免，加 is_building_group = bg_plantations
+                NOT = { is_building_group = bg_extraction }
             }
 
-            # 根据建筑等级执行不同降级量
-            # if → else_if → else_if → ... → else 链条：
-            #   只执行第一个满足条件的分支，后面的跳过
 
-            # 100 级以上 — 降 12 级 【降级量表】
-            # 【产权检查】门槛 0.12：100级×12% = 12 私有等级 → 够扣
+            # ============================================================
+            # § 第二关：已通过筛选 — 开始判断严重程度并降级
+            #
+            # 严重程度分两级：
+            #   🔴 严重 (SEVERE)：人手 < 25% 且 现金 < 10%
+            #   🟡 中度 (MODERATE)：满足基本触发条件但不满足严重条件
+            #
+            # 每种程度下，根据建筑的当前等级决定降多少级：
+            #
+            # 【降级量表】— 修改这些数字来调整降级力度
+            #  建筑等级     🔴严重    🟡中度
+            #   1-10 级      -1       -1
+            #   11-25 级     -3       -2
+            #   26-50 级     -5       -3
+            #   51-100 级    -8       -5
+            #   100+ 级      -12      -8
+            #
+            # 【产权检查】每个降级档位还有 private_ownership_fraction 门槛：
+            #   门槛 = 降级量 / 该档最低等级
+            #   这确保即使在最坏情况下(刚好踩线进入该档)，私有等级数也 ≥ 降级量
+            #   从而绝对不会误扣政府持有的等级
+            # ============================================================
+
+            # ———————— 🔴 严重分支 ————————
             if = {
+                # 严重条件：雇佣率 < 25% 且 现金 < 10%
+                # 【可调参数】改 0.25/0.1 来调整"严重"的判定标准
                 limit = {
-                    level >= 100
-                    private_ownership_fraction >= 0.12
+                    occupancy < 0.25           # 不到四分之一岗位有人
+                    cash_reserves_ratio < 0.1  # 现金库几乎见底
                 }
-                state = {
-                    add_building_level = {
-                        building = PREV    # ← PREV = 当前建筑
-                        level = -12        # ← 负号 = 降级 【降级量表】
-                    }
-                }
-            }
-            # 51-100 级 — 降 8 级 【降级量表】
-            # 【产权检查】门槛 0.16：51级×16% ≈ 8.2 私有等级 → 够扣
-            else_if = {
-                limit = {
-                    level >= 51
-                    private_ownership_fraction >= 0.16
-                }
-                state = {
-                    add_building_level = {
-                        building = PREV
-                        level = -8          # 【降级量表】
-                    }
-                }
-            }
-            # 26-50 级 — 降 5 级 【降级量表】
-            # 【产权检查】门槛 0.20：26级×20% ≈ 5.2 私有等级 → 够扣
-            else_if = {
-                limit = {
-                    level >= 26
-                    private_ownership_fraction >= 0.20
-                }
-                state = {
-                    add_building_level = {
-                        building = PREV
-                        level = -5          # 【降级量表】
-                    }
-                }
-            }
-            # 11-25 级 — 降 3 级 【降级量表】
-            # 【产权检查】门槛 0.28：11级×28% ≈ 3.1 私有等级 → 够扣
-            else_if = {
-                limit = {
-                    level >= 11
-                    private_ownership_fraction >= 0.28
-                }
-                state = {
-                    add_building_level = {
-                        building = PREV
-                        level = -3          # 【降级量表】
-                    }
-                }
-            }
-            # 1-10 级 — 降 1 级 【降级量表】
-            # 【产权检查】门槛 0.50：
-            #   最坏情况 level=1，降1级会移除整栋建筑。设 0.50 保守阈值
-            #   确保建筑至少一半是私有的，才允许移除它
-            else_if = {
-                limit = {
-                    level >= 1
-                    private_ownership_fraction >= 0.50
-                }
-                state = {
-                    add_building_level = {
-                        building = PREV
-                        level = -1          # 【降级量表】
-                    }
-                }
-            }
-        }
 
-        # ———————— 🟡 中度分支 ————————
-        # 不满足严重条件但满足基本触发条件时走这里
-        # 降级量比严重分支小
-        else = {
-            # 100 级以上 — 降 8 级 【降级量表】
-            # 【产权检查】门槛 0.08：100级×8% = 8 私有等级 → 够扣
-            if = {
-                limit = {
-                    level >= 100
-                    private_ownership_fraction >= 0.08
+                # 根据建筑等级执行不同降级量
+                # if → else_if → else_if → ... → else 链条：
+                #   只执行第一个满足条件的分支，后面的跳过
+
+                # 100 级以上 — 降 12 级 【降级量表】
+                # 【产权检查】门槛 0.12：100级×12% = 12 私有等级 → 够扣
+                if = {
+                    limit = {
+                        level >= 100
+                        private_ownership_fraction >= 0.12
+                    }
+                    state = {
+                        add_building_level = {
+                            building = PREV    # ← PREV = 当前建筑
+                            level = -12        # ← 负号 = 降级 【降级量表】
+                        }
+                    }
                 }
-                state = {
-                    add_building_level = {
-                        building = PREV
-                        level = -8           # 【降级量表】
+                # 51-100 级 — 降 8 级 【降级量表】
+                # 【产权检查】门槛 0.16：51级×16% ≈ 8.2 私有等级 → 够扣
+                else_if = {
+                    limit = {
+                        level >= 51
+                        private_ownership_fraction >= 0.16
+                    }
+                    state = {
+                        add_building_level = {
+                            building = PREV
+                            level = -8          # 【降级量表】
+                        }
+                    }
+                }
+                # 26-50 级 — 降 5 级 【降级量表】
+                # 【产权检查】门槛 0.20：26级×20% ≈ 5.2 私有等级 → 够扣
+                else_if = {
+                    limit = {
+                        level >= 26
+                        private_ownership_fraction >= 0.20
+                    }
+                    state = {
+                        add_building_level = {
+                            building = PREV
+                            level = -5          # 【降级量表】
+                        }
+                    }
+                }
+                # 11-25 级 — 降 3 级 【降级量表】
+                # 【产权检查】门槛 0.28：11级×28% ≈ 3.1 私有等级 → 够扣
+                else_if = {
+                    limit = {
+                        level >= 11
+                        private_ownership_fraction >= 0.28
+                    }
+                    state = {
+                        add_building_level = {
+                            building = PREV
+                            level = -3          # 【降级量表】
+                        }
+                    }
+                }
+                # 1-10 级 — 降 1 级 【降级量表】
+                # 【产权检查】门槛 0.50：
+                #   最坏情况 level=1，降1级会移除整栋建筑。设 0.50 保守阈值
+                #   确保建筑至少一半是私有的，才允许移除它
+                else_if = {
+                    limit = {
+                        level >= 1
+                        private_ownership_fraction >= 0.50
+                    }
+                    state = {
+                        add_building_level = {
+                            building = PREV
+                            level = -1          # 【降级量表】
+                        }
                     }
                 }
             }
-            # 51-100 级 — 降 5 级 【降级量表】
-            # 【产权检查】门槛 0.10：51级×10% ≈ 5.1 私有等级 → 够扣
-            else_if = {
-                limit = {
-                    level >= 51
-                    private_ownership_fraction >= 0.10
+
+            # ———————— 🟡 中度分支 ————————
+            # 不满足严重条件但满足基本触发条件时走这里
+            # 降级量比严重分支小
+            else = {
+                # 100 级以上 — 降 8 级 【降级量表】
+                # 【产权检查】门槛 0.08：100级×8% = 8 私有等级 → 够扣
+                if = {
+                    limit = {
+                        level >= 100
+                        private_ownership_fraction >= 0.08
+                    }
+                    state = {
+                        add_building_level = {
+                            building = PREV
+                            level = -8           # 【降级量表】
+                        }
+                    }
                 }
-                state = {
-                    add_building_level = {
-                        building = PREV
-                        level = -5           # 【降级量表】
+                # 51-100 级 — 降 5 级 【降级量表】
+                # 【产权检查】门槛 0.10：51级×10% ≈ 5.1 私有等级 → 够扣
+                else_if = {
+                    limit = {
+                        level >= 51
+                        private_ownership_fraction >= 0.10
+                    }
+                    state = {
+                        add_building_level = {
+                            building = PREV
+                            level = -5           # 【降级量表】
+                        }
+                    }
+                }
+                # 26-50 级 — 降 3 级 【降级量表】
+                # 【产权检查】门槛 0.12：26级×12% ≈ 3.1 私有等级 → 够扣
+                else_if = {
+                    limit = {
+                        level >= 26
+                        private_ownership_fraction >= 0.12
+                    }
+                    state = {
+                        add_building_level = {
+                            building = PREV
+                            level = -3           # 【降级量表】
+                        }
+                    }
+                }
+                # 11-25 级 — 降 2 级 【降级量表】
+                # 【产权检查】门槛 0.19：11级×19% ≈ 2.1 私有等级 → 够扣
+                else_if = {
+                    limit = {
+                        level >= 11
+                        private_ownership_fraction >= 0.19
+                    }
+                    state = {
+                        add_building_level = {
+                            building = PREV
+                            level = -2           # 【降级量表】
+                        }
+                    }
+                }
+                # 1-10 级 — 降 1 级 【降级量表】
+                # 【产权检查】门槛 0.50（保守值）：
+                #   最坏情况 level=1，降1级会移除整栋建筑。设 0.50 保守阈值
+                else_if = {
+                    limit = {
+                        level >= 1
+                        private_ownership_fraction >= 0.50
+                    }
+                    state = {
+                        add_building_level = {
+                            building = PREV
+                            level = -1           # 【降级量表】
+                        }
                     }
                 }
             }
-            # 26-50 级 — 降 3 级 【降级量表】
-            # 【产权检查】门槛 0.12：26级×12% ≈ 3.1 私有等级 → 够扣
-            else_if = {
-                limit = {
-                    level >= 26
-                    private_ownership_fraction >= 0.12
-                }
-                state = {
-                    add_building_level = {
-                        building = PREV
-                        level = -3           # 【降级量表】
-                    }
+
+
+            # ================================================================
+            # § 第三关：设置冷却期
+            # 给这个建筑打上一个 6 个月的"标记"
+            # 在标记存在期间，limit 中的 NOT = { has_variable = auto_downsize_cooldown }
+            # 会阻止这个建筑再次被降级
+            # 【冷却期】改 months = 6 的值来调整冷却时间
+            #   月数越短 → 检查越频繁 → 降级越快
+            #   月数越长 → 检查越稀疏 → 降级越慢但更平稳
+            # ================================================================
+            set_variable = {
+                name = auto_downsize_cooldown
+                months = 3                     # 【冷却期】6个月
+            }
+
+
+            # ================================================================
+            # § 第四关：更新统计计数器
+            # ROOT = { ... }  从建筑 scope 跳回国家 scope
+            # change_variable = { name = xxx add = 1 }  给计数器 +1
+            # 这个计数器会显示在日志条目描述中
+            # ================================================================
+            ROOT = {
+                change_variable = {
+                    name = auto_downsize_buildings_affected
+                    add = 1
                 }
             }
-            # 11-25 级 — 降 2 级 【降级量表】
-            # 【产权检查】门槛 0.19：11级×19% ≈ 2.1 私有等级 → 够扣
-            else_if = {
-                limit = {
-                    level >= 11
-                    private_ownership_fraction >= 0.19
-                }
-                state = {
-                    add_building_level = {
-                        building = PREV
-                        level = -2           # 【降级量表】
-                    }
-                }
-            }
-            # 1-10 级 — 降 1 级 【降级量表】
-            # 【产权检查】门槛 0.50（保守值）：
-            #   最坏情况 level=1，降1级会移除整栋建筑。设 0.50 保守阈值
-            else_if = {
-                limit = {
-                    level >= 1
-                    private_ownership_fraction >= 0.50
-                }
-                state = {
-                    add_building_level = {
-                        building = PREV
-                        level = -1           # 【降级量表】
-                    }
-                }
-            }
-        }
 
+        }  # — every_scope_building 结束 —
 
-        # ================================================================
-        # § 第三关：设置冷却期
-        # 给这个建筑打上一个 6 个月的"标记"
-        # 在标记存在期间，limit 中的 NOT = { has_variable = auto_downsize_cooldown }
-        # 会阻止这个建筑再次被降级
-        # 【冷却期】改 months = 6 的值来调整冷却时间
-        #   月数越短 → 检查越频繁 → 降级越快
-        #   月数越长 → 检查越稀疏 → 降级越慢但更平稳
-        # ================================================================
-        set_variable = {
-            name = auto_downsize_cooldown
-            months = 6                     # 【冷却期】6个月
-        }
-
-
-        # ================================================================
-        # § 第四关：更新统计计数器
-        # ROOT = { ... }  从建筑 scope 跳回国家 scope
-        # change_variable = { name = xxx add = 1 }  给计数器 +1
-        # 这个计数器会显示在日志条目描述中
-        # ================================================================
-        ROOT = {
-            change_variable = {
-                name = auto_downsize_buildings_affected
-                add = 1
-            }
-        }
-
-    }  # — every_scope_building 结束 —
+    }  # — any_scope_building 前置检查结束 —
 }
 
 
@@ -389,84 +403,117 @@ auto_downsize_check_and_execute = {
 # ================================================================================
 
 auto_downsize_ai_check = {
-    every_scope_building = {
+
+    # ================================================================
+    # § 前置检查：是否存在需要降级的 AI 建筑？
+    # ================================================================
+    if = {
         limit = {
-            # ---- 排除（与玩家版相同） ----
-            NOR = {
-                is_building_group = bg_government
-                is_building_group = bg_military
-                is_building_group = bg_public_infrastructure
-            }
-            NOT = { is_subsistence_building = yes }
-            NOR = {
-                is_building_group = bg_owner_buildings
-                is_building_group = bg_financial_districts
-                is_building_group = bg_manor_houses
-                is_building_group = bg_company_headquarter
-                is_building_group = bg_company_regional_headquarter
-            }
-            NOT = { is_building_group = bg_trade }
-            NOT = { is_building_group = bg_extraction }
-
-            # ---- 仅私有产权 ----
-            private_ownership_fraction > 0
-
-            # ---- AI 严格条件 ----
-            level >= 1
-            occupancy < 0.2                  # 【可调参数】人手低于 20%
-            cash_reserves_ratio < 0.05       # 【可调参数】现金见底（低于 5%）
-            weekly_profit < -200             # 【可调参数】每周严重亏损
-
-            # ---- 冷却期 ----
-            NOT = { has_variable = auto_downsize_ai_cooldown }
-        }
-
-        # ———————— AI 严重降级（只有一档，不走中度分支） ————————
-        # 100 级以上 — 降 12 级
-        if = {
-            limit = {
-                level >= 100
-                private_ownership_fraction >= 0.12
-            }
-            state = { add_building_level = { building = PREV level = -12 } }
-        }
-        # 51-100 级 — 降 8 级
-        else_if = {
-            limit = {
-                level >= 51
-                private_ownership_fraction >= 0.16
-            }
-            state = { add_building_level = { building = PREV level = -8 } }
-        }
-        # 26-50 级 — 降 5 级
-        else_if = {
-            limit = {
-                level >= 26
-                private_ownership_fraction >= 0.20
-            }
-            state = { add_building_level = { building = PREV level = -5 } }
-        }
-        # 11-25 级 — 降 3 级
-        else_if = {
-            limit = {
-                level >= 11
-                private_ownership_fraction >= 0.28
-            }
-            state = { add_building_level = { building = PREV level = -3 } }
-        }
-        # 1-10 级 — 降 1 级（仅私有过半时）
-        else_if = {
-            limit = {
+            any_scope_building = {
+                NOT = { has_variable = auto_downsize_ai_cooldown }
+                occupancy < 0.2
+                weekly_profit < -200
+                cash_reserves_ratio < 0.05
+                NOT = { is_subsistence_building = yes }
+                private_ownership_fraction > 0
                 level >= 1
-                private_ownership_fraction >= 0.50
+                NOR = {
+                    is_building_group = bg_government
+                    is_building_group = bg_military
+                    is_building_group = bg_public_infrastructure
+                }
+                NOR = {
+                    is_building_group = bg_owner_buildings
+                    is_building_group = bg_financial_districts
+                    is_building_group = bg_manor_houses
+                    is_building_group = bg_company_headquarter
+                    is_building_group = bg_company_regional_headquarter
+                }
+                NOT = { is_building_group = bg_trade }
+                NOT = { is_building_group = bg_extraction }
             }
-            state = { add_building_level = { building = PREV level = -1 } }
         }
 
-        # ---- AI 冷却期（与玩家版相同，6个月） ----
-        set_variable = {
-            name = auto_downsize_ai_cooldown
-            months = 6
+        every_scope_building = {
+            limit = {
+                # ---- 冷却期（排在最前） ----
+                NOT = { has_variable = auto_downsize_ai_cooldown }
+
+                # ---- AI 严格条件（高拒绝率） ----
+                occupancy < 0.2                  # 【可调参数】人手低于 20%
+                weekly_profit < -200             # 【可调参数】每周严重亏损
+                cash_reserves_ratio < 0.05       # 【可调参数】现金见底（低于 5%）
+
+                # ---- 基本排除 ----
+                NOT = { is_subsistence_building = yes }
+                private_ownership_fraction > 0
+                level >= 1
+
+                # ---- 建筑组排除 ----
+                NOR = {
+                    is_building_group = bg_government
+                    is_building_group = bg_military
+                    is_building_group = bg_public_infrastructure
+                }
+                NOR = {
+                    is_building_group = bg_owner_buildings
+                    is_building_group = bg_financial_districts
+                    is_building_group = bg_manor_houses
+                    is_building_group = bg_company_headquarter
+                    is_building_group = bg_company_regional_headquarter
+                }
+                NOT = { is_building_group = bg_trade }
+                NOT = { is_building_group = bg_extraction }
+            }
+
+            # ———————— AI 严重降级（只有一档，不走中度分支） ————————
+            # 100 级以上 — 降 12 级
+            if = {
+                limit = {
+                    level >= 100
+                    private_ownership_fraction >= 0.12
+                }
+                state = { add_building_level = { building = PREV level = -12 } }
+            }
+            # 51-100 级 — 降 8 级
+            else_if = {
+                limit = {
+                    level >= 51
+                    private_ownership_fraction >= 0.16
+                }
+                state = { add_building_level = { building = PREV level = -8 } }
+            }
+            # 26-50 级 — 降 5 级
+            else_if = {
+                limit = {
+                    level >= 26
+                    private_ownership_fraction >= 0.20
+                }
+                state = { add_building_level = { building = PREV level = -5 } }
+            }
+            # 11-25 级 — 降 3 级
+            else_if = {
+                limit = {
+                    level >= 11
+                    private_ownership_fraction >= 0.28
+                }
+                state = { add_building_level = { building = PREV level = -3 } }
+            }
+            # 1-10 级 — 降 1 级（仅私有过半时）
+            else_if = {
+                limit = {
+                    level >= 1
+                    private_ownership_fraction >= 0.50
+                }
+                state = { add_building_level = { building = PREV level = -1 } }
+            }
+
+            # ---- AI 冷却期（与玩家版相同，6个月） ----
+            set_variable = {
+                name = auto_downsize_ai_cooldown
+                months = 6
+            }
         }
-    }
+
+    }  # — any_scope_building 前置检查结束 —
 }
