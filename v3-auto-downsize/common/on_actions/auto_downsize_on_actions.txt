@@ -1,0 +1,21 @@
+# ================================================================================
+# AI 国家降级钩子 — 每半年触发一次简化检查
+# ================================================================================
+# 玩家国家通过 JE 的脉冲来驱动（每周/每月可选），
+# AI 国家没有 JE / UI，通过全局 on_half_yearly_pulse_country 每半年静默执行一次。
+#
+# 使用 on_action 链式挂载模式（避免覆盖原版的 effect 块）：
+#   原版 on_action → 调用我们的 on_action → 执行简化版降级逻辑
+# ================================================================================
+
+on_half_yearly_pulse_country = {
+    on_actions = {
+        auto_downsize_ai_half_yearly_pulse
+    }
+}
+
+auto_downsize_ai_half_yearly_pulse = {
+    effect = {
+        auto_downsize_ai_check = yes
+    }
+}

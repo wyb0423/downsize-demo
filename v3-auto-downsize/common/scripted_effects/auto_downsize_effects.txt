@@ -368,3 +368,105 @@ auto_downsize_check_and_execute = {
 
     }  # — every_scope_building 结束 —
 }
+
+
+# ================================================================================
+# AI 国家简化版降级逻辑 — auto_downsize_ai_check
+# ================================================================================
+# 每半年通过 on_half_yearly_pulse_country 静默触发一次，无 UI / 无按钮。
+#
+# 与玩家版的区别：
+#   - 触发频率：每半年一次（vs 玩家每周/每月）
+#   - 触发条件更严：只处理"极度亏损+严重缺人"的建筑，避免干扰 AI 经济
+#   - 只有严重分支，没有中度分支
+#   - 不追踪统计数据（AI 不需要看）
+#   - 同样的排除规则、产权保护、冷却期（6个月）
+#
+# 【可调参数】修改下面这些数字来调整 AI 版灵敏度：
+#   occupancy < 0.2        — 人手低于 20%（vs 玩家 50%）
+#   cash_reserves_ratio < 0.05 — 现金低于 5%（vs 玩家 25%）
+#   weekly_profit < -200    — 每周亏 200 以上（vs 玩家 ≤ 0）
+# ================================================================================
+
+auto_downsize_ai_check = {
+    every_scope_building = {
+        limit = {
+            # ---- 排除（与玩家版相同） ----
+            NOR = {
+                is_building_group = bg_government
+                is_building_group = bg_military
+                is_building_group = bg_public_infrastructure
+            }
+            NOT = { is_subsistence_building = yes }
+            NOR = {
+                is_building_group = bg_owner_buildings
+                is_building_group = bg_financial_districts
+                is_building_group = bg_manor_houses
+                is_building_group = bg_company_headquarter
+                is_building_group = bg_company_regional_headquarter
+            }
+            NOT = { is_building_group = bg_trade }
+            NOT = { is_building_group = bg_extraction }
+
+            # ---- 仅私有产权 ----
+            private_ownership_fraction > 0
+
+            # ---- AI 严格条件 ----
+            level >= 1
+            occupancy < 0.2                  # 【可调参数】人手低于 20%
+            cash_reserves_ratio < 0.05       # 【可调参数】现金见底（低于 5%）
+            weekly_profit < -200             # 【可调参数】每周严重亏损
+
+            # ---- 冷却期 ----
+            NOT = { has_variable = auto_downsize_ai_cooldown }
+        }
+
+        # ———————— AI 严重降级（只有一档，不走中度分支） ————————
+        # 100 级以上 — 降 12 级
+        if = {
+            limit = {
+                level >= 100
+                private_ownership_fraction >= 0.12
+            }
+            state = { add_building_level = { building = PREV level = -12 } }
+        }
+        # 51-100 级 — 降 8 级
+        else_if = {
+            limit = {
+                level >= 51
+                private_ownership_fraction >= 0.16
+            }
+            state = { add_building_level = { building = PREV level = -8 } }
+        }
+        # 26-50 级 — 降 5 级
+        else_if = {
+            limit = {
+                level >= 26
+                private_ownership_fraction >= 0.20
+            }
+            state = { add_building_level = { building = PREV level = -5 } }
+        }
+        # 11-25 级 — 降 3 级
+        else_if = {
+            limit = {
+                level >= 11
+                private_ownership_fraction >= 0.28
+            }
+            state = { add_building_level = { building = PREV level = -3 } }
+        }
+        # 1-10 级 — 降 1 级（仅私有过半时）
+        else_if = {
+            limit = {
+                level >= 1
+                private_ownership_fraction >= 0.50
+            }
+            state = { add_building_level = { building = PREV level = -1 } }
+        }
+
+        # ---- AI 冷却期（与玩家版相同，6个月） ----
+        set_variable = {
+            name = auto_downsize_ai_cooldown
+            months = 6
+        }
+    }
+}
