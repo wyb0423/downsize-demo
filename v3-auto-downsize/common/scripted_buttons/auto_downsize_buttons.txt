@@ -46,6 +46,11 @@ auto_downsize_toggle_button = {
         always = yes
     }
 
+    # 按钮始终可点击
+    possible = {
+        always = yes
+    }
+
     # 当 auto_downsize_enabled 变量存在时，按钮高亮
     # 高亮 = 告诉玩家"当前是启用状态"
     selected = {

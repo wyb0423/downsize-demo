@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebFetch(domain:vic3.paradoxwikis.com)",
+      "WebFetch(domain:www.bilibili.com)",
+      "WebFetch(domain:web.archive.org)",
+      "Read(//c/Program Files \\(x86\\)/Steam/steamapps/common/**)",
+      "Bash(reg query *)",
+      "Bash(xxd -l 16 \"C:/Users/wyb/Documents/Paradox Interactive/Victoria 3/mod/v3-auto-downsize/localization/english/auto_downsize_l_english.yml\")",
+      "Bash(xxd *)"
+    ]
+  }
+}
