@@ -3,8 +3,8 @@
 # ================================================================================
 #  这个文件被 je_auto_downsize 的脉冲（每周/每月）调用。
 #  它的工作流程：
-#    [开始] → 前置检查是否有目标建筑 → 遍历全国每个建筑 → 筛选
-#    → 判断严重程度 → 计算降级量 → 执行降级 → 设冷却期 → 更新统计 → [结束]
+#    [开始] → 遍历全国每个建筑 → 筛选 → 判断严重程度 → 计算降级量
+#    → 执行降级 → 设冷却期 → 更新统计 → [结束]
 
 #  ★ 如果你只想改阈值：搜索 "【可调参数】"
 #  ★ 如果你只想改降级量：搜索 "【降级量表】"
@@ -31,53 +31,19 @@
 #      设置一个持续 N 个月的临时变量。
 #      用于冷却期：变量存在期间，建筑不会被再次降级。
 
-#  ★ 性能优化说明：
-#    1. any_scope_building 前置检查：trigger 找到第一个匹配即返回，
-#       当没有需要降级的建筑时（大多数 tick），直接跳过整个 effect 块。
-#    2. limit 条件顺序经过优化：拒绝率最高的条件排在最前面，
-#       利用引擎的短路求值尽早过滤掉大多数健康建筑。
+#  ★ 性能说明：
+#    limit 条件按拒绝率从高到低排列——冷却期排在最前，大部分建筑
+#    在冷却期检查即被过滤；健康建筑的 occupancy/weekly_profit 检查
+#    紧随其后。利用引擎的短路求值尽早跳过不匹配的建筑。
 # ================================================================================
 
 auto_downsize_check_and_execute = {
 
     # ================================================================
-    # § 前置检查：是否存在需要降级的建筑？
-    # any_scope_building 是 trigger，找到第一个匹配即返回 true。
-    # 如果没有任何建筑满足条件，跳过整个 every_scope_building effect，
-    # 避免在没有目标时执行完整的 effect 遍历开销。
+    # 遍历全国的每一个建筑
+    # every_scope_building: 从国家 scope 遍历所有 state 中的所有 building
     # ================================================================
-    if = {
-        limit = {
-            any_scope_building = {
-                NOT = { has_variable = auto_downsize_cooldown }
-                occupancy < 0.5
-                weekly_profit <= 0
-                cash_reserves_ratio < 0.25
-                NOT = { is_subsistence_building = yes }
-                private_ownership_fraction > 0
-                level >= 1
-                NOR = {
-                    is_building_group = bg_government
-                    is_building_group = bg_military
-                    is_building_group = bg_public_infrastructure
-                }
-                NOR = {
-                    is_building_group = bg_owner_buildings
-                    is_building_group = bg_financial_districts
-                    is_building_group = bg_manor_houses
-                    is_building_group = bg_company_headquarter
-                    is_building_group = bg_company_regional_headquarter
-                }
-                NOT = { is_building_group = bg_trade }
-                NOT = { is_building_group = bg_extraction }
-            }
-        }
-
-        # ================================================================
-        # 遍历全国的每一个建筑
-        # every_scope_building: 从国家 scope 遍历所有 state 中的所有 building
-        # ================================================================
-        every_scope_building = {
+    every_scope_building = {
 
             # ----------------------------------------------------------
             # § 第一关：limit 过滤器 — 只有满足所有条件的建筑才会被处理
@@ -393,9 +359,7 @@ auto_downsize_check_and_execute = {
                 }
             }
 
-        }  # — every_scope_building 结束 —
-
-    }  # — any_scope_building 前置检查结束 —
+    }  # — every_scope_building 结束 —
 }
 
 
@@ -419,43 +383,7 @@ auto_downsize_check_and_execute = {
 
 auto_downsize_ai_check = {
 
-    # ================================================================
-    # § 前置检查：是否存在需要降级的 AI 建筑？
-    # ================================================================
-    if = {
-        limit = {
-            any_scope_building = {
-                NOT = { has_variable = auto_downsize_ai_cooldown }
-                occupancy < 0.2
-                weekly_profit < -200
-                cash_reserves_ratio < 0.05
-                NOT = { is_subsistence_building = yes }
-                private_ownership_fraction > 0
-                level >= 1
-                NOR = {
-                    is_building_group = bg_government
-                    is_building_group = bg_military
-                    is_building_group = bg_public_infrastructure
-                }
-                NOR = {
-                    is_building_group = bg_owner_buildings
-                    is_building_group = bg_financial_districts
-                    is_building_group = bg_manor_houses
-                    is_building_group = bg_company_headquarter
-                    is_building_group = bg_company_regional_headquarter
-                }
-                NOT = { is_building_group = bg_trade }
-                NOT = { is_building_group = bg_extraction }
-                OR = {
-                    NOT = { is_building_type = building_railway }
-                    state = {
-                        infrastructure > infrastructure_usage
-                    }
-                }
-            }
-        }
-
-        every_scope_building = {
+    every_scope_building = {
             limit = {
                 # ---- 冷却期（排在最前） ----
                 NOT = { has_variable = auto_downsize_ai_cooldown }
@@ -543,6 +471,4 @@ auto_downsize_ai_check = {
                 months = 6
             }
         }
-
-    }  # — any_scope_building 前置检查结束 —
-}
+    }
