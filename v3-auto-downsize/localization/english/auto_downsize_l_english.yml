@@ -26,3 +26,7 @@ l_english:
  # ---- 频率切换按钮 ----
  auto_downsize_frequency_button_name:0 "§HCheck Frequency§!"
  auto_downsize_frequency_button_desc:0 "Click to switch between weekly and monthly checks.\n\n#bold Weekly:#! Responds faster to problem buildings.\n#bold Monthly (default):#! Lower performance impact."
+
+ # ---- 统计显示 ----
+ auto_downsize_stats_display_name:0 "Buildings affected: #variable [GetPlayer.MakeScope.Var('auto_downsize_buildings_affected').GetValue|0]#!"
+

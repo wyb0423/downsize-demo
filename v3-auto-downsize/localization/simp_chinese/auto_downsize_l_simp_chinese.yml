@@ -34,3 +34,7 @@ l_simp_chinese:
  # ---- 频率切换按钮 ----
  auto_downsize_frequency_button_name:0 "§H检查频率§!"
  auto_downsize_frequency_button_desc:0 "点击以在每周检查和每月检查之间切换。\n\n#bold 每周：#! 对问题建筑反应更快。\n#bold 每月（默认）：#! 性能开销较低。"
+
+ # ---- 统计显示 ----
+ auto_downsize_stats_display_name:0 "已处理建筑：#variable [GetPlayer.MakeScope.Var('auto_downsize_buildings_affected').GetValue|0]#!"
+

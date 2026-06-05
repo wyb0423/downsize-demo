@@ -126,3 +126,22 @@ auto_downsize_frequency_button = {
         base = 0
     }
 }
+
+
+# ============================================================================
+# 显示项 — 已处理的建筑数（纯数字展示，不可点击）
+# ============================================================================
+
+auto_downsize_stats_display = {
+
+    name = "auto_downsize_stats_display_name"
+
+    visible = {
+        always = yes
+    }
+
+    # 永远不可点击 — 仅用于显示统计数字
+    possible = {
+        always = no
+    }
+}
