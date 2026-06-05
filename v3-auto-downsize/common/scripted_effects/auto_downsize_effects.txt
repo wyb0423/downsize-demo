@@ -89,12 +89,10 @@ auto_downsize_check_and_execute = {
                 # 排除自给自足建筑（农民自己种的，不是资本家建的）
                 NOT = { is_subsistence_building = yes }
 
-                # 仅降级有私有/公司持有的建筑等级
-                # private_ownership_fraction 范围 0.0 ~ 1.0
-                #   0.0 = 完全政府持有（玩家可手动降级）→ 跳过
-                # 【可调参数】改 > 0 → = 1 表示"只处理100%私有的建筑"
-                # 【可调参数】改 > 0 → >= 0.5 表示"只处理私有过半的建筑"
-                private_ownership_fraction > 0
+                # ★ 外国投资兼容：此处不设产权门槛，外资建筑也能进入流程
+                # 各降级档位内部的 private_ownership_fraction >= X 负责保护
+                # 政府持有的等级不被误扣。纯政府建筑（0%私有+0%外资）
+                # 会在档位产权检查处被自然拦截。
 
                 # 安全保护：建筑至少要有 1 级（0 级的建筑不存在）
                 level >= 1
@@ -160,10 +158,12 @@ auto_downsize_check_and_execute = {
             #   51-100 级    -8       -5
             #   100+ 级      -12      -8
             #
-            # 【产权检查】每个降级档位还有 private_ownership_fraction 门槛：
+            # 【产权检查】每个降级档位双重保护：
+            #   主分支：private_ownership_fraction >= X （国内私有）
+            #   兜底分支：country_ownership_fraction <= 1-X （非政府=私有+外资）
             #   门槛 = 降级量 / 该档最低等级
-            #   这确保即使在最坏情况下(刚好踩线进入该档)，私有等级数也 ≥ 降级量
-            #   从而绝对不会误扣政府持有的等级
+            #   确保最坏情况下非政府等级也 ≥ 降级量，政府等级不被误扣
+            #   同时覆盖国内私有和外国投资两种产权类型
             # ============================================================
 
             # ———————— 🔴 严重分支 ————————
@@ -180,11 +180,16 @@ auto_downsize_check_and_execute = {
                 #   只执行第一个满足条件的分支，后面的跳过
 
                 # 100 级以上 — 降 12 级 【降级量表】
-                # 【产权检查】门槛 0.12：100级×12% = 12 私有等级 → 够扣
+                # 【产权检查】非政府产权 ≥ 0.12：
+                #   私有分支：private_ownership_fraction >= 0.12
+                #   外资兜底：政府持有 ≤ 0.88 ⇔ 私有+外资 ≥ 12%
                 if = {
                     limit = {
                         level >= 100
-                        private_ownership_fraction >= 0.12
+                        OR = {
+                            private_ownership_fraction >= 0.12
+                            NOR = { country_ownership_fraction > 0.88 }
+                        }
                     }
                     state = {
                         add_building_level = {
@@ -194,11 +199,14 @@ auto_downsize_check_and_execute = {
                     }
                 }
                 # 51-100 级 — 降 8 级 【降级量表】
-                # 【产权检查】门槛 0.16：51级×16% ≈ 8.2 私有等级 → 够扣
+                # 【产权检查】非政府产权 ≥ 0.16：政府 ≤ 0.84
                 else_if = {
                     limit = {
                         level >= 51
-                        private_ownership_fraction >= 0.16
+                        OR = {
+                            private_ownership_fraction >= 0.16
+                            NOR = { country_ownership_fraction > 0.84 }
+                        }
                     }
                     state = {
                         add_building_level = {
@@ -208,11 +216,14 @@ auto_downsize_check_and_execute = {
                     }
                 }
                 # 26-50 级 — 降 5 级 【降级量表】
-                # 【产权检查】门槛 0.20：26级×20% ≈ 5.2 私有等级 → 够扣
+                # 【产权检查】非政府产权 ≥ 0.20：政府 ≤ 0.80
                 else_if = {
                     limit = {
                         level >= 26
-                        private_ownership_fraction >= 0.20
+                        OR = {
+                            private_ownership_fraction >= 0.20
+                            NOR = { country_ownership_fraction > 0.80 }
+                        }
                     }
                     state = {
                         add_building_level = {
@@ -222,11 +233,14 @@ auto_downsize_check_and_execute = {
                     }
                 }
                 # 11-25 级 — 降 3 级 【降级量表】
-                # 【产权检查】门槛 0.28：11级×28% ≈ 3.1 私有等级 → 够扣
+                # 【产权检查】非政府产权 ≥ 0.28：政府 ≤ 0.72
                 else_if = {
                     limit = {
                         level >= 11
-                        private_ownership_fraction >= 0.28
+                        OR = {
+                            private_ownership_fraction >= 0.28
+                            NOR = { country_ownership_fraction > 0.72 }
+                        }
                     }
                     state = {
                         add_building_level = {
@@ -236,13 +250,15 @@ auto_downsize_check_and_execute = {
                     }
                 }
                 # 1-10 级 — 降 1 级 【降级量表】
-                # 【产权检查】门槛 0.50：
-                #   最坏情况 level=1，降1级会移除整栋建筑。设 0.50 保守阈值
-                #   确保建筑至少一半是私有的，才允许移除它
+                # 【产权检查】非政府产权 ≥ 0.50：政府 ≤ 0.50（保守）
+                #   最坏情况 level=1，降1级会移除整栋建筑
                 else_if = {
                     limit = {
                         level >= 1
-                        private_ownership_fraction >= 0.50
+                        OR = {
+                            private_ownership_fraction >= 0.50
+                            NOR = { country_ownership_fraction > 0.50 }
+                        }
                     }
                     state = {
                         add_building_level = {
@@ -258,11 +274,14 @@ auto_downsize_check_and_execute = {
             # 降级量比严重分支小
             else = {
                 # 100 级以上 — 降 8 级 【降级量表】
-                # 【产权检查】门槛 0.08：100级×8% = 8 私有等级 → 够扣
+                # 【产权检查】非政府产权 ≥ 0.08：政府 ≤ 0.92
                 if = {
                     limit = {
                         level >= 100
-                        private_ownership_fraction >= 0.08
+                        OR = {
+                            private_ownership_fraction >= 0.08
+                            NOR = { country_ownership_fraction > 0.92 }
+                        }
                     }
                     state = {
                         add_building_level = {
@@ -272,11 +291,14 @@ auto_downsize_check_and_execute = {
                     }
                 }
                 # 51-100 级 — 降 5 级 【降级量表】
-                # 【产权检查】门槛 0.10：51级×10% ≈ 5.1 私有等级 → 够扣
+                # 【产权检查】非政府产权 ≥ 0.10：政府 ≤ 0.90
                 else_if = {
                     limit = {
                         level >= 51
-                        private_ownership_fraction >= 0.10
+                        OR = {
+                            private_ownership_fraction >= 0.10
+                            NOR = { country_ownership_fraction > 0.90 }
+                        }
                     }
                     state = {
                         add_building_level = {
@@ -286,11 +308,14 @@ auto_downsize_check_and_execute = {
                     }
                 }
                 # 26-50 级 — 降 3 级 【降级量表】
-                # 【产权检查】门槛 0.12：26级×12% ≈ 3.1 私有等级 → 够扣
+                # 【产权检查】非政府产权 ≥ 0.12：政府 ≤ 0.88
                 else_if = {
                     limit = {
                         level >= 26
-                        private_ownership_fraction >= 0.12
+                        OR = {
+                            private_ownership_fraction >= 0.12
+                            NOR = { country_ownership_fraction > 0.88 }
+                        }
                     }
                     state = {
                         add_building_level = {
@@ -300,11 +325,14 @@ auto_downsize_check_and_execute = {
                     }
                 }
                 # 11-25 级 — 降 2 级 【降级量表】
-                # 【产权检查】门槛 0.19：11级×19% ≈ 2.1 私有等级 → 够扣
+                # 【产权检查】非政府产权 ≥ 0.19：政府 ≤ 0.81
                 else_if = {
                     limit = {
                         level >= 11
-                        private_ownership_fraction >= 0.19
+                        OR = {
+                            private_ownership_fraction >= 0.19
+                            NOR = { country_ownership_fraction > 0.81 }
+                        }
                     }
                     state = {
                         add_building_level = {
@@ -314,12 +342,15 @@ auto_downsize_check_and_execute = {
                     }
                 }
                 # 1-10 级 — 降 1 级 【降级量表】
-                # 【产权检查】门槛 0.50（保守值）：
-                #   最坏情况 level=1，降1级会移除整栋建筑。设 0.50 保守阈值
+                # 【产权检查】非政府产权 ≥ 0.50（保守值）：政府 ≤ 0.50
+                #   最坏情况 level=1，降1级会移除整栋建筑
                 else_if = {
                     limit = {
                         level >= 1
-                        private_ownership_fraction >= 0.50
+                        OR = {
+                            private_ownership_fraction >= 0.50
+                            NOR = { country_ownership_fraction > 0.50 }
+                        }
                     }
                     state = {
                         add_building_level = {
@@ -366,7 +397,7 @@ auto_downsize_check_and_execute = {
 # ================================================================================
 # AI 国家简化版降级逻辑 — auto_downsize_ai_check
 # ================================================================================
-# 每半年通过 on_half_yearly_pulse_country 静默触发一次，无 UI / 无按钮。
+# 通过月脉冲计数器每季度（3个月）静默触发一次，无 UI / 无按钮。
 #
 # 与玩家版的区别：
 #   - 触发频率：每半年一次（vs 玩家每周/每月）
@@ -395,7 +426,7 @@ auto_downsize_ai_check = {
 
                 # ---- 基本排除 ----
                 NOT = { is_subsistence_building = yes }
-                private_ownership_fraction > 0
+                # ★ 外资兼容：不设产权入场门槛，与玩家版同理
                 level >= 1
 
                 # 铁路特殊检查：必须有基建盈余才能降级
@@ -428,7 +459,10 @@ auto_downsize_ai_check = {
             if = {
                 limit = {
                     level >= 100
-                    private_ownership_fraction >= 0.12
+                    OR = {
+                        private_ownership_fraction >= 0.12
+                        NOR = { country_ownership_fraction > 0.88 }
+                    }
                 }
                 state = { add_building_level = { building = PREV level = -12 } }
             }
@@ -436,7 +470,10 @@ auto_downsize_ai_check = {
             else_if = {
                 limit = {
                     level >= 51
-                    private_ownership_fraction >= 0.16
+                    OR = {
+                        private_ownership_fraction >= 0.16
+                        NOR = { country_ownership_fraction > 0.84 }
+                    }
                 }
                 state = { add_building_level = { building = PREV level = -8 } }
             }
@@ -444,7 +481,10 @@ auto_downsize_ai_check = {
             else_if = {
                 limit = {
                     level >= 26
-                    private_ownership_fraction >= 0.20
+                    OR = {
+                        private_ownership_fraction >= 0.20
+                        NOR = { country_ownership_fraction > 0.80 }
+                    }
                 }
                 state = { add_building_level = { building = PREV level = -5 } }
             }
@@ -452,7 +492,10 @@ auto_downsize_ai_check = {
             else_if = {
                 limit = {
                     level >= 11
-                    private_ownership_fraction >= 0.28
+                    OR = {
+                        private_ownership_fraction >= 0.28
+                        NOR = { country_ownership_fraction > 0.72 }
+                    }
                 }
                 state = { add_building_level = { building = PREV level = -3 } }
             }
@@ -460,7 +503,10 @@ auto_downsize_ai_check = {
             else_if = {
                 limit = {
                     level >= 1
-                    private_ownership_fraction >= 0.50
+                    OR = {
+                        private_ownership_fraction >= 0.50
+                        NOR = { country_ownership_fraction > 0.50 }
+                    }
                 }
                 state = { add_building_level = { building = PREV level = -1 } }
             }

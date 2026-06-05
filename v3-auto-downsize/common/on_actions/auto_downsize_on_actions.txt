@@ -1,21 +1,96 @@
 # ================================================================================
-# AI 国家降级钩子 — 每半年触发一次简化检查
+# on_action 钩子 — 驱动降级逻辑的定时触发器
 # ================================================================================
 # 玩家国家通过 JE 的脉冲来驱动（每周/每月可选），
-# AI 国家没有 JE / UI，通过全局 on_half_yearly_pulse_country 每半年静默执行一次。
+# AI 国家没有 JE / UI，通过月脉冲计数器每季度静默执行一次。
 #
 # 使用 on_action 链式挂载模式（避免覆盖原版的 effect 块）：
 #   原版 on_action → 调用我们的 on_action → 执行简化版降级逻辑
+#
+# ★ 已有存档兼容性：
+#   auto_downsize_player_init 在每月脉冲时检查玩家国家是否已初始化，
+#   如果尚未初始化则补建变量。这确保了 Mod 在已有存档中也能正常工作，
+#   不依赖于 JE 的 possible = always 是否能自动激活。
 # ================================================================================
 
-on_half_yearly_pulse_country = {
+# ================================================================
+# AI 降级 — 每季度触发一次简化检查
+# 通过月脉冲计数器实现：每3个月触发一次（频率比半年度翻倍）
+# ================================================================
+on_monthly_pulse_country = {
     on_actions = {
-        auto_downsize_ai_half_yearly_pulse
+        auto_downsize_player_init
+        auto_downsize_ai_quarterly_counter
     }
 }
 
-auto_downsize_ai_half_yearly_pulse = {
+# ★ AI 季度计数器：每月递增，到3时触发AI检查并归零
+auto_downsize_ai_quarterly_counter = {
     effect = {
-        auto_downsize_ai_check = yes
+        if = {
+            limit = {
+                is_player = no
+            }
+            # 首次触发时初始化计数器
+            if = {
+                limit = {
+                    NOT = { has_variable = auto_downsize_ai_tick }
+                }
+                set_variable = {
+                    name = auto_downsize_ai_tick
+                    value = 0
+                }
+            }
+            # 每月递增
+            change_variable = {
+                name = auto_downsize_ai_tick
+                add = 1
+            }
+            # 达到3时触发AI检查并归零
+            if = {
+                limit = {
+                    check_variable = {
+                        name = auto_downsize_ai_tick
+                        value >= 3
+                    }
+                }
+                auto_downsize_ai_check = yes
+                set_variable = {
+                    name = auto_downsize_ai_tick
+                    value = 0
+                }
+            }
+        }
+    }
+}
+
+# ================================================================
+# ★ 已有存档兼容性 — 玩家初始化安全网
+# 如果玩家在已有存档中途启用本 Mod，JE 可能不会自动激活。
+# 这个每月脉冲确保即使 JE 未激活，变量也能正确初始化。
+# 同时设置 auto_downsize_initialized 标记防止重复执行。
+# ================================================================
+auto_downsize_player_init = {
+    effect = {
+        # 仅对玩家国家执行，且仅执行一次
+        if = {
+            limit = {
+                is_player = yes
+                NOT = { has_variable = auto_downsize_initialized }
+            }
+            # 打上"已初始化"标记，防止下个月再次执行
+            set_variable = auto_downsize_initialized
+
+            # 初始化受影响的建筑计数器（JE 的 immediate 可能未触发）
+            if = {
+                limit = {
+                    NOT = { has_variable = auto_downsize_buildings_affected }
+                }
+                set_variable = {
+                    name = auto_downsize_buildings_affected
+                    value = 0
+                }
+            }
+        }
     }
 }

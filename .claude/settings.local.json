@@ -10,7 +10,9 @@
       "Bash(xxd -l 16 \"C:/Users/wyb/Documents/Paradox Interactive/Victoria 3/mod/v3-auto-downsize/localization/english/auto_downsize_l_english.yml\")",
       "Bash(xxd *)",
       "Bash(grep -n \"any_scope_building 前置检查结束\\\\|every_scope_building 结束\\\\|}$\" \"/Users/wyb/摸鱼/v3-mod-demo/v3-auto-downsize/common/scripted_effects/auto_downsize_effects.txt\")",
-      "Bash(grep *)"
+      "Bash(grep *)",
+      "Read(//c/Steam/steamapps/common/Victoria 3/game/**)",
+      "Read(//mnt/c/Program Files \\(x86\\)/Steam/steamapps/common/Victoria 3/game/**)"
     ]
   }
 }
