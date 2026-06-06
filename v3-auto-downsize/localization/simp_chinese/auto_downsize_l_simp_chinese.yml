@@ -24,7 +24,9 @@ l_simp_chinese:
  # 日志面板中显示的描述（鼠标悬停时）
  # \n\n 是段落分隔，#bold ...#! 是粗体
  # [SCOPE...GetValue|0] 是显示变量值
- je_auto_downsize_desc:0 "监控并自动缩减私人投资建造的亏损、人手不足的建筑。防止游戏后期投机性过度建造导致的基础设施压力与经济循环崩溃。\n\n#bold 已处理的建筑数#!\n#bold 玩家本国：#! [GetPlayer.MakeScope.Var('auto_downsize_buildings_affected').GetValue|0]\n#bold AI 国家（全球）：#! [GetGlobalVariable('auto_downsize_ai_total').GetValue|0]"
+ je_auto_downsize_desc:0 "监控并自动缩减私人投资建造的亏损、人手不足的建筑。防止游戏后期投机性过度建造导致的基础设施压力与经济循环崩溃。\n\n#bold 已处理的建筑数#!\n#bold 玩家本国：#! [ROOT.Var('auto_downsize_buildings_affected').GetValue|0]\n#bold AI 国家（全球）：#! [GetGlobalVariable('auto_downsize_ai_total').GetValue|0]"
+ # 日志面板中显示的激活原因
+ je_auto_downsize_reason:0 "该条目始终激活，监控全国私营及外资建筑。启用开关后，每周或每月自动检查并缩减亏损、人手不足的建筑等级。"
 
  # ---- 启用/禁用按钮 ----
  # §H...§! = 黄色/金色标题文字

@@ -76,7 +76,11 @@ button_key = {
 - `is_subsistence_building = yes` — check if subsistence building
 - `is_building_type = building_xxx` — check exact building type
 - `level` — current building level
-- `has_variable = <name>` — check if variable exists on scope
+- `private_ownership_fraction` — domestic private ownership ratio
+- `country_ownership_fraction` — government ownership ratio
+- **⚠️ Building scope does NOT support `has_variable` / `set_variable`** (confirmed via error.log)
+  - Cooldown must use pulse frequency (weekly/monthly) for natural throttling
+  - Variables only work on country and state scopes
 
 ### Building Effects (state scope)
 - `add_building_level = { building = <building_type_key> level = <int> }` — change building level (negative = reduce)
@@ -84,8 +88,11 @@ button_key = {
 
 ### Variables
 - Country (ROOT) scope: `set_variable = { name = xxx }`, `change_variable = { name = xxx add = N }`
-- Building scope: `set_variable = { name = xxx months = N }` (cooldown pattern)
+- State scope: supports `set_variable` / `has_variable`
+- **Building scope: does NOT support variables** — use pulse frequency for cooldown
 - Variable existence: `has_variable = xxx`
+- Global variables: `set_global_variable`, `change_global_variable`, `has_global_variable`
+  - Display: `[GetGlobalVariable('xxx').GetValue|0]`
 
 ### Scope References
 - `ROOT` — original scope (country in JE context)
