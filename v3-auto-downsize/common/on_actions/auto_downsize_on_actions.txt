@@ -2,7 +2,7 @@
 # on_action 钩子 — 驱动降级逻辑的定时触发器
 # ================================================================================
 # 玩家国家通过 JE 的脉冲来驱动（每周/每月可选），
-# AI 国家没有 JE / UI，通过月脉冲计数器每季度静默执行一次。
+# AI 国家没有 JE / UI，通过月脉冲每月静默执行一次。
 #
 # 使用 on_action 链式挂载模式（避免覆盖原版的 effect 块）：
 #   原版 on_action → 调用我们的 on_action → 执行简化版降级逻辑
@@ -14,52 +14,23 @@
 # ================================================================================
 
 # ================================================================
-# AI 降级 — 每季度触发一次简化检查
-# 通过月脉冲计数器实现：每3个月触发一次（频率比半年度翻倍）
+# AI 降级 — 每月触发一次简化检查（频率固定）
 # ================================================================
 on_monthly_pulse_country = {
     on_actions = {
         auto_downsize_player_init
-        auto_downsize_ai_quarterly_counter
+        auto_downsize_ai_monthly_pulse
     }
 }
 
-# ★ AI 季度计数器：每月递增，到3时触发AI检查并归零
-auto_downsize_ai_quarterly_counter = {
+# ★ AI 每月脉冲：直接触发 AI 降级检查（无计数器）
+auto_downsize_ai_monthly_pulse = {
     effect = {
         if = {
             limit = {
                 is_player = no
             }
-            # 首次触发时初始化计数器
-            if = {
-                limit = {
-                    NOT = { has_variable = auto_downsize_ai_tick }
-                }
-                set_variable = {
-                    name = auto_downsize_ai_tick
-                    value = 0
-                }
-            }
-            # 每月递增
-            change_variable = {
-                name = auto_downsize_ai_tick
-                add = 1
-            }
-            # 达到3时触发AI检查并归零
-            if = {
-                limit = {
-                    check_variable = {
-                        name = auto_downsize_ai_tick
-                        value >= 3
-                    }
-                }
-                auto_downsize_ai_check = yes
-                set_variable = {
-                    name = auto_downsize_ai_tick
-                    value = 0
-                }
-            }
+            auto_downsize_ai_check = yes
         }
     }
 }

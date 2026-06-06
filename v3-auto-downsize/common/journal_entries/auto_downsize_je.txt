@@ -54,9 +54,9 @@ je_auto_downsize = {
 
 
     # ----- 交互按钮 -----
+    # 统计信息已移至 JE 描述文本中（je_auto_downsize_desc）
     scripted_button = auto_downsize_toggle_button
     scripted_button = auto_downsize_frequency_button
-    scripted_button = auto_downsize_stats_display
 
 
     # ================================================================
