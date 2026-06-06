@@ -24,7 +24,7 @@ l_simp_chinese:
  # 日志面板中显示的描述（鼠标悬停时）
  # \n\n 是段落分隔，#bold ...#! 是粗体
  # [SCOPE...GetValue|0] 是显示变量值
- je_auto_downsize_desc:0 "监控并自动缩减私人投资建造的亏损、人手不足的建筑。防止游戏后期投机性过度建造导致的基础设施压力与经济循环崩溃。\n\n#bold 已处理的建筑数#!\n#bold 玩家本国：#! [ROOT.GetCountry.MakeScope.Var('auto_downsize_buildings_affected').GetValue|0]\n#bold AI 国家（全球）：#! [GetGlobalVariable('auto_downsize_ai_total').GetValue|0]"
+ je_auto_downsize_desc:0 "监控并自动缩减私人投资建造的亏损、人手不足的建筑。防止游戏后期投机性过度建造导致的基础设施压力与经济循环崩溃。"
  # 日志面板中显示的激活原因
  je_auto_downsize_reason:0 "该条目始终激活，监控全国私营及外资建筑。启用开关后，每周或每月自动检查并缩减亏损、人手不足的建筑等级。"
 
@@ -37,6 +37,9 @@ l_simp_chinese:
  auto_downsize_frequency_button_name:0 "§H检查频率§!"
  auto_downsize_frequency_button_desc:0 "点击以在每周检查和每月检查之间切换。\n\n#bold 每周：#! 对问题建筑反应更快。\n#bold 每月（默认）：#! 性能开销较低。"
 
- # ---- 统计显示（已移至 JE 描述文本中） ----
- auto_downsize_stats_display_name:0 "已处理建筑：#variable [GetPlayer.MakeScope.Var('auto_downsize_buildings_affected').GetValue|0]#!"
+ # ---- 统计显示（纯展示按钮） ----
+ auto_downsize_player_stats_name:0 "玩家本国已处理：#variable [ROOT.GetCountry.MakeScope.Var('auto_downsize_buildings_affected').GetValue|0]#!"
+ auto_downsize_player_stats_desc:0 "本国被自动降级的亏损/缺人建筑总数。"
+ auto_downsize_ai_stats_name:0 "AI 全球已处理：#variable [GetGlobalVariable('auto_downsize_ai_total').GetValue|0]#!"
+ auto_downsize_ai_stats_desc:0 "全球 AI 国家被自动降级的建筑总数。"
 

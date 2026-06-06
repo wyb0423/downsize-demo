@@ -1,67 +1,21 @@
-﻿# ================================================================================
-#  日记条目 (Journal Entry) — "私营建筑监管"
-# ================================================================================
-#  这个文件定义了游戏内"日志"面板中显示的条目。
-#  游戏内路径：打开日志面板 (F8) → 内政分类 → "私营建筑监管"
+﻿auto_downsize = {
 
-#  ★ 工作原理：
-#    1. 条目始终对玩家可见（is_shown_when_inactive）
-#    2. 条目始终处于激活状态（possible = always yes）
-#    3. 但实际的降级逻辑由两个"变量"控制是否执行：
-#       - auto_downsize_enabled：存在 = Mod 启用，不存在 = Mod 禁用
-#       - auto_downsize_weekly：  存在 = 每周检查，不存在 = 每月检查
-#    4. 每周/每月的脉冲触发时，先检查这两个变量再决定是否执行
-
-#  ★ 你需要知道的变量：
-#    auto_downsize_enabled          — 启用开关（存在=开）
-#    auto_downsize_weekly           — 频率：每周（存在=每周，不存在=每月）
-#    auto_downsize_buildings_affected — 统计：累计受影响的建筑数（显示在 JE 描述中）
-
-#  ★ 如果你想修改：
-#    - 想默认启用 Mod？     → 在 immediate 块里加 set_variable = auto_downsize_enabled
-#    - 想默认每周检查？     → 在 immediate 块里加 set_variable = auto_downsize_weekly
-#    - 想只在特定国家显示？ → 改 is_shown_when_inactive 的条件
-# ================================================================================
-
-je_auto_downsize = {
-
-    # ----- 外观设置 -----
     icon = "gfx/interface/icons/event_icons/event_industry.dds"
     group = je_group_internal_affairs
 
-
-    # ----- 可见性设置 -----
     is_shown_when_inactive = {
         is_player = yes
     }
 
-
-    # ----- 激活条件 -----
     possible = {
         always = yes
     }
 
-
-    # ----- 初始化 -----
-    immediate = {
-        ROOT = {
-            set_variable = {
-                name = auto_downsize_buildings_affected
-                value = 0
-            }
-        }
-    }
-
-
-    # ----- 交互按钮 -----
-    # 统计信息已移至 JE 描述文本中（je_auto_downsize_desc）
     scripted_button = auto_downsize_toggle_button
     scripted_button = auto_downsize_frequency_button
+    scripted_button = auto_downsize_player_stats
+    scripted_button = auto_downsize_ai_stats
 
-
-    # ================================================================
-    # 每周脉冲 — 启用 + 每周模式时触发
-    # ================================================================
     on_weekly_pulse = {
         effect = {
             if = {
@@ -74,10 +28,6 @@ je_auto_downsize = {
         }
     }
 
-
-    # ================================================================
-    # 每月脉冲 — 启用 + 每月模式（默认）时触发
-    # ================================================================
     on_monthly_pulse = {
         effect = {
             if = {
@@ -89,9 +39,4 @@ je_auto_downsize = {
             }
         }
     }
-
-
-    # ----- 显示设置 -----
-    weight = 100
-    should_be_pinned_by_default = yes
 }

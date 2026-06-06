@@ -52,6 +52,11 @@ auto_downsize_player_init = {
             # 打上"已初始化"标记，防止下个月再次执行
             set_variable = auto_downsize_initialized
 
+            # 显式激活 JE（确保已有存档加入 mod 时也能触发）
+            add_journal_entry = {
+                type = je_auto_downsize
+            }
+
             # 初始化受影响的建筑计数器（JE 的 immediate 可能未触发）
             if = {
                 limit = {
@@ -59,6 +64,17 @@ auto_downsize_player_init = {
                 }
                 set_variable = {
                     name = auto_downsize_buildings_affected
+                    value = 0
+                }
+            }
+
+            # 初始化全局 AI 建筑计数器
+            if = {
+                limit = {
+                    NOT = { has_global_variable = auto_downsize_ai_total }
+                }
+                set_global_variable = {
+                    name = auto_downsize_ai_total
                     value = 0
                 }
             }

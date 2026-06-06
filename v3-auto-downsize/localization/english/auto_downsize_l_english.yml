@@ -15,7 +15,7 @@ l_english:
 
  # ---- 日记条目 ----
  je_auto_downsize:0 "Private Building Oversight"
- je_auto_downsize_desc:0 "Monitor and automatically downsize unprofitable, understaffed buildings owned by the private sector. This helps prevent infrastructure strain caused by speculative overbuilding in the late game.\n\n#bold Buildings Processed#!\n#bold Your Country:#! [ROOT.GetCountry.MakeScope.Var('auto_downsize_buildings_affected').GetValue|0]\n#bold AI Countries (Global):#! [GetGlobalVariable('auto_downsize_ai_total').GetValue|0]"
+ je_auto_downsize_desc:0 "Monitor and automatically downsize unprofitable, understaffed buildings owned by the private sector. This helps prevent infrastructure strain caused by speculative overbuilding in the late game."
  je_auto_downsize_reason:0 "This entry is always active, monitoring all private and foreign-invested buildings nationwide. When enabled, it automatically checks and reduces the levels of unprofitable, understaffed buildings on a weekly or monthly basis."
 
  # ---- 启用/禁用按钮 ----
@@ -28,6 +28,9 @@ l_english:
  auto_downsize_frequency_button_name:0 "§HCheck Frequency§!"
  auto_downsize_frequency_button_desc:0 "Click to switch between weekly and monthly checks.\n\n#bold Weekly:#! Responds faster to problem buildings.\n#bold Monthly (default):#! Lower performance impact."
 
- # ---- 统计显示 ----
- auto_downsize_stats_display_name:0 "Buildings affected: #variable [GetPlayer.MakeScope.Var('auto_downsize_buildings_affected').GetValue|0]#!"
+ # ---- 统计显示（纯展示按钮） ----
+ auto_downsize_player_stats_name:0 "Your Country: #variable [ROOT.GetCountry.MakeScope.Var('auto_downsize_buildings_affected').GetValue|0]#!"
+ auto_downsize_player_stats_desc:0 "Total number of unprofitable/understaffed buildings downsized in your country."
+ auto_downsize_ai_stats_name:0 "AI Global: #variable [GetGlobalVariable('auto_downsize_ai_total').GetValue|0]#!"
+ auto_downsize_ai_stats_desc:0 "Total number of buildings downsized across all AI countries globally."
 

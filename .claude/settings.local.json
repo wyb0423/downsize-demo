@@ -12,7 +12,22 @@
       "Bash(grep -n \"any_scope_building 前置检查结束\\\\|every_scope_building 结束\\\\|}$\" \"/Users/wyb/摸鱼/v3-mod-demo/v3-auto-downsize/common/scripted_effects/auto_downsize_effects.txt\")",
       "Bash(grep *)",
       "Read(//c/Steam/steamapps/common/Victoria 3/game/**)",
-      "Read(//mnt/c/Program Files \\(x86\\)/Steam/steamapps/common/Victoria 3/game/**)"
+      "Read(//mnt/c/Program Files \\(x86\\)/Steam/steamapps/common/Victoria 3/game/**)",
+      "Read(//c/c/Users/wyb/Documents/Paradox Interactive/Victoria 3/downsize-demo/v3-auto-downsize/common/journal_entries/**)",
+      "Read(//c/c/Users/wyb/Documents/Paradox Interactive/Victoria 3/downsize-demo/v3-auto-downsize/common/scripted_buttons/**)",
+      "Bash(command -v bdata)",
+      "Bash(bdata zones *)",
+      "WebFetch(domain:webcache.googleusercontent.com)",
+      "Bash(python3)",
+      "Bash(awk 'BEGIN { while \\(\\(getline line < \"/tmp/player_blocks.txt\"\\) > 0\\) { player=player line \"\\\\n\" } close\\(\"/tmp/player_blocks.txt\"\\); while \\(\\(getline line < \"/tmp/ai_blocks.txt\"\\) > 0\\) { ai=ai line \"\\\\n\" } close\\(\"/tmp/ai_blocks.txt\"\\) } { gsub\\(\"_BUILDING_TYPE_CHAIN_\", player\\); gsub\\(\"_AI_BUILDING_TYPE_CHAIN_\", ai\\); print }' \"common/scripted_effects/auto_downsize_effects.txt\")",
+      "Bash(mv \"common/scripted_effects/auto_downsize_effects_full.txt\" \"common/scripted_effects/auto_downsize_effects.txt\")",
+      "Read(//c/Users/wyb/Documents/Paradox Interactive/Victoria 3/mod/v3-auto-downsize/localization/simp_chinese/**)",
+      "Read(//c/Users/wyb/Documents/Paradox Interactive/Victoria 3/mod/v3-auto-downsize/localization/english/**)",
+      "Bash(where python *)",
+      "Bash(where python3 *)",
+      "Bash(python -c \"print\\('hello from python'\\)\")",
+      "Bash(echo \"exit: $?\")",
+      "Bash(python3 -c \"print\\('hello from python3'\\)\")"
     ]
   }
 }

@@ -2,7 +2,7 @@
   "name": "Auto Downsize Private Buildings",
   "id": "com.v3mod.auto-downsize",
   "version": "1.0",
-  "supported_game_version": "1.8.*",
+  "supported_game_version": "1.13.*",
   "short_description": "Automatically reduce levels of unprofitable, understaffed privately-owned buildings to prevent infrastructure collapse in late game.",
   "tags": ["gameplay", "economy", "balance"],
   "relationships": []
