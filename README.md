@@ -35,6 +35,23 @@ AI 路径（全自动）
 
 AI 版故意设得更保守——AI 经济脆弱，只在建筑"彻底废了"时才出手，避免雪上加霜。
 
+## 预防机制：AI 建造约束
+
+除了降级已建成的建筑，Mod 还通过 `common/defines/` 覆盖了游戏 AI 的建造决策参数，从源头减少无效建造：
+
+| Define | 原值 | 新值 | 效果 |
+|--------|------|------|------|
+| `PRODUCTION_BUILDING_NO_AVAILABLE_WORKFORCE_FACTOR` | 0.25 | **0** | 当地无人力时权重归零 → 禁止建造（总分乘数） |
+| `PRODUCTION_BUILDING_STATE_NO_AVAILABLE_WORKFORCE_FACTOR` | 0.05 | **0** | 无人力州直接排除（总分乘数） |
+| `PRODUCTION_BUILDING_LOW_EMPLOYMENT_THRESHOLD` | 0.8 | **0.9** | 雇佣率 < 90% 不扩建（有硬编码例外） |
+| `PRODUCTION_BUILDING_AUTONOMOUS_INVESTMENT_BELOW_DESIRED_INFRASTRUCTURE_FACTOR_MULT` | 0.25 | **1.0** | 私有投资对基建的敏感度与政府持平 |
+| `PRODUCTION_BUILDING_FREE_INFRASTRUCTURE_TARGET_WHEN_LACKING_WORKFORCE` | 5 | **10** | 缺人力时更早停止在低基建州建造 |
+
+**局限性**：
+- "上周招到人的建筑即使雇佣率低也可扩建"是引擎硬编码例外，defines 改不了
+- 新建筑初始雇佣率 0%，不受 `LOW_EMPLOYMENT_THRESHOLD` 限制
+- 基建的 MULT 是单项因子乘数而非总分，只能加大惩罚不能强制禁止
+
 ## 文件结构
 
 ```
@@ -42,12 +59,14 @@ v3-auto-downsize/
 ├── .metadata/
 │   └── metadata.json                    # 启动器识别信息
 ├── common/
+│   ├── defines/
+│   │   └── auto_downsize_defines.txt    # AI 建造约束（预防）
 │   ├── journal_entries/
 │   │   └── auto_downsize_je.txt         # 玩家日志条目 + 脉冲
 │   ├── scripted_buttons/
 │   │   └── auto_downsize_buttons.txt    # 启用开关 + 频率切换
 │   ├── scripted_effects/
-│   │   └── auto_downsize_effects.txt    # ★ 核心：玩家 + AI 降级逻辑
+│   │   └── auto_downsize_effects.txt    # ★ 核心：玩家 + AI 降级逻辑（治疗）
 │   └── on_actions/
 │       └── auto_downsize_on_actions.txt # AI 半年度钩子
 └── localization/

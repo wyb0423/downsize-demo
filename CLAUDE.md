@@ -34,9 +34,11 @@ Enable in Paradox Launcher playset.
 v3-auto-downsize/
 ├── .metadata/metadata.json
 ├── common/
+│   ├── defines/auto_downsize_defines.txt            # AI construction constraints (prevention)
 │   ├── journal_entries/auto_downsize_je.txt    # JE: UI + pulse hooks
 │   ├── scripted_buttons/auto_downsize_buttons.txt  # Toggle & frequency buttons
-│   └── scripted_effects/auto_downsize_effects.txt  # Core downsize logic
+│   ├── scripted_effects/auto_downsize_effects.txt  # Core downsize logic (treatment)
+│   └── on_actions/auto_downsize_on_actions.txt     # AI half-yearly hook
 └── localization/
     ├── english/auto_downsize_l_english.yml
     └── simp_chinese/auto_downsize_l_simp_chinese.yml
